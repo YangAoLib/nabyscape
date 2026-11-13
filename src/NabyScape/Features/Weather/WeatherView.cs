@@ -91,13 +91,13 @@ internal sealed class WeatherView : UserControl
         sources.SelectionChanged+=(_,_)=>RefreshAuthVisibility();
         location.Children.Add(authMode);
         location.Children.Add(keyField);
+        location.Children.Add(hostField);
+        location.Children.Add(issuerField);
         location.Children.Add(projectField);
         location.Children.Add(credentialField);
-        location.Children.Add(issuerField);
         location.Children.Add(privateField);
         location.Children.Add(jwtButtons);
         location.Children.Add(publicField);
-        location.Children.Add(hostField);
         location.Children.Add(guide);
         void RefreshAuthVisibility()
         {
