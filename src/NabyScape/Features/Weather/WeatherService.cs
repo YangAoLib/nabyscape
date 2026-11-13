@@ -324,6 +324,18 @@ internal sealed class WeatherService : IDisposable
         if(!response.IsSuccessStatusCode)
         {
             int status=(int)response.StatusCode;
+            // QWeather errors carry a structured JSON body on some failures and are empty on others; surface the detail when present.
+            string detail="";
+            try
+            {
+                await using var errorStream=await response.Content.ReadAsStreamAsync(token);
+                using var errorDoc=await JsonDocument.ParseAsync(errorStream,default,token);
+                if(errorDoc.RootElement.TryGetProperty("error",out var error)&&error.TryGetProperty("detail",out var field)&&field.ValueKind==JsonValueKind.String)
+                    detail=field.GetString()??"";
+            }
+            catch(Exception){/* empty or non-JSON body: fall back to the generic message. */}
+            if(detail.Length>0)
+                throw new InvalidOperationException(Localization.Format("QWeather rejected the request ({0}): {1}",status,detail));
             throw status is 401 or 403
                 ?new InvalidOperationException(Localization.Format("QWeather rejected the request ({0}). Check the credentials, and fill the API Host box with the host your console assigns.",status))
                 :new InvalidOperationException(Localization.Format("QWeather error ({0}).",status));
