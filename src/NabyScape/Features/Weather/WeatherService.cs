@@ -155,13 +155,13 @@ internal sealed class WeatherService : IDisposable
         string sunrise=Clock(Text(real.GetProperty("sunriseSunset"),"sunrise")),sunset=Clock(Text(real.GetProperty("sunriseSunset"),"sunset"));
         string now=DateTimeOffset.Now.ToString("HH:mm");
         bool day=string.CompareOrdinal(now,sunrise)>=0 && string.CompareOrdinal(now,sunset)<0;
-        var snapshot=new WeatherSnapshot{Key=key,Updated=DateTimeOffset.UtcNow,Temperature=Convert(celsius,units),FeelsLike=Convert(Number(weather,"feelst"),units),Wind=WindKmh(Text(real.GetProperty("wind"),"power")),Humidity=Number(weather,"humidity"),Code=NmcToCode(Number(weather,"img")),Day=day,Sunrise=sunrise,Sunset=sunset};
+        var snapshot=new WeatherSnapshot{Key=key,Updated=DateTimeOffset.UtcNow,Temperature=ConvertTemp(celsius,units),FeelsLike=ConvertTemp(Number(weather,"feelst"),units),Wind=WindKmh(Text(real.GetProperty("wind"),"power")),Humidity=Number(weather,"humidity"),Code=NmcToCode(Number(weather,"img")),Day=day,Sunrise=sunrise,Sunset=sunset};
         string info=Text(weather,"info");snapshot.ConditionText=info is "-" or "" ?"":info;
         if(data.TryGetProperty("predict",out var predict)&&predict.TryGetProperty("detail",out var detail)&&detail.ValueKind==JsonValueKind.Array&&detail.GetArrayLength()>0)
         {
             var today=detail[0];
             double dayTemp=HalfTemp(today,true),nightTemp=HalfTemp(today,false);
-            snapshot.High=Convert(Math.Max(dayTemp,nightTemp),units);snapshot.Low=Convert(Math.Min(dayTemp,nightTemp),units);
+            snapshot.High=ConvertTemp(Math.Max(dayTemp,nightTemp),units);snapshot.Low=ConvertTemp(Math.Min(dayTemp,nightTemp),units);
             // NMC has no hourly forecast; fill the strip with day/night half-day slots.
             (int Index,string Label,bool IsDay)[] slots=day
                 ?new[]{(0,"今天",true),(0,"今晚",false),(1,"明白天",true),(1,"明夜",false)}
@@ -170,7 +170,7 @@ internal sealed class WeatherService : IDisposable
             {
                 if(slot.Index>=detail.GetArrayLength())break;
                 var half=detail[slot.Index].GetProperty(slot.IsDay?"day":"night").GetProperty("weather");
-                snapshot.Hours.Add(new(){Time=slot.Label,Temperature=Convert(HalfTemp(detail[slot.Index],slot.IsDay),units),Code=NmcToCode(Number(half,"img")),Day=slot.IsDay,RainChance=0});
+                snapshot.Hours.Add(new(){Time=slot.Label,Temperature=ConvertTemp(HalfTemp(detail[slot.Index],slot.IsDay),units),Code=NmcToCode(Number(half,"img")),Day=slot.IsDay,RainChance=0});
             }
         }
         if(!token.IsCancellationRequested && pendingKey==key){Cached=snapshot;try{store.Save("weather",snapshot);}catch(Exception ex){store.Log(ex);}}return snapshot;
@@ -185,7 +185,7 @@ internal sealed class WeatherService : IDisposable
         if(digits.Count>0&&int.TryParse(digits[^1].Value,NumberStyles.Integer,CultureInfo.InvariantCulture,out var level)&&level is >=0 and <=12)return Math.Min(120,level*9);
         return power?.Trim() switch{"无风"=>0,"软风"=>3,"轻风"=>8,"微风"=>16,"和风"=>24,"劲风"=>34,"强风"=>44,"疾风"=>55,"大风"=>68,"烈风"=>81,"狂风"=>95,"暴风"=>110,"飓风"=>120,_=>12};
     }
-    private static double Convert(double celsius,string units)=>units=="Fahrenheit"?celsius*9d/5d+32d:celsius;
+    private static double ConvertTemp(double celsius,string units)=>units=="Fahrenheit"?celsius*9d/5d+32d:celsius;
     // NMC icon codes (0 晴 1 多云 2 阴 3 阵雨 4 雷阵雨 5 雷阵雨伴冰雹 6-11 雨 12-16 雪 17 雾 18 冻雨 19-31 沙尘 53 霾 …) to WMO weather codes.
     private static int NmcToCode(double raw)
     {
