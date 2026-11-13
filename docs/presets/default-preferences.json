@@ -346,6 +346,7 @@
   "WeatherAuthMode": "apikey",
   "WeatherProjectId": "",
   "WeatherCredentialId": "",
+  "WeatherIssuer": "",
   "WeatherPrivateKey": "",
   "WeatherPublicKey": "",
   "DownloadsFolder": "",

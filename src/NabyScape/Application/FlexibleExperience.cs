@@ -26,6 +26,7 @@ public sealed partial class Settings
     public string WeatherAuthMode {get;set;}="apikey";
     public string WeatherProjectId {get;set;}="";
     public string WeatherCredentialId {get;set;}="";
+    public string WeatherIssuer {get;set;}="";
     public string WeatherPrivateKey {get;set;}="";
     public string WeatherPublicKey {get;set;}="";
     private void NormalizeFlexible()
@@ -54,6 +55,7 @@ public sealed partial class Settings
         if(WeatherAuthMode is not ("apikey" or "jwt"))WeatherAuthMode="apikey";
         WeatherProjectId=(WeatherProjectId??"").Trim();if(WeatherProjectId.Length>64)WeatherProjectId=WeatherProjectId[..64];
         WeatherCredentialId=(WeatherCredentialId??"").Trim();if(WeatherCredentialId.Length>64)WeatherCredentialId=WeatherCredentialId[..64];
+        WeatherIssuer=(WeatherIssuer??"").Trim();if(WeatherIssuer.Length>64)WeatherIssuer=WeatherIssuer[..64];
         WeatherPrivateKey=(WeatherPrivateKey??"").Trim();if(WeatherPrivateKey.Length>2400)WeatherPrivateKey=WeatherPrivateKey[..2400];
         WeatherPublicKey=(WeatherPublicKey??"").Trim();if(WeatherPublicKey.Length>1200)WeatherPublicKey=WeatherPublicKey[..1200];
     }

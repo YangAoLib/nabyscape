@@ -345,7 +345,7 @@ internal sealed class WeatherService : IDisposable
         CheckQw(doc.RootElement);
         return doc;
     }
-    private static bool JwtConfigured(Settings s)=>s.WeatherProjectId.Length>0&&s.WeatherCredentialId.Length>0&&s.WeatherPrivateKey.Length>0;
+    private static bool JwtConfigured(Settings s)=>s.WeatherProjectId.Length>0&&s.WeatherCredentialId.Length>0&&s.WeatherIssuer.Length>0&&s.WeatherPrivateKey.Length>0;
     // .NET has no public Ed25519 API, so PEM handling and EdDSA signatures use BouncyCastle.
     // RFC 8410 makes Ed25519 PKCS#8/SPKI fixed-size structures, so parsing is done directly on the DER
     // instead of relying on PemReader's version-dependent PKCS#8 object mapping.
@@ -385,12 +385,13 @@ internal sealed class WeatherService : IDisposable
     private static string EnsureJwt(Settings s)
     {
         if(jwtToken is { } cached && DateTimeOffset.UtcNow<jwtExpires)return cached;
-        if(!JwtConfigured(s))throw new InvalidOperationException(Localization.Text("Enter your QWeather project ID, credential ID and private key first."));
+        if(!JwtConfigured(s))throw new InvalidOperationException(Localization.Text("Enter your QWeather project ID, credential ID, user ID and private key first."));
         Ed25519PrivateKeyParameters parameters=ImportPrivateKey(s.WeatherPrivateKey);
         long iat=DateTimeOffset.UtcNow.AddSeconds(-10).ToUnixTimeSeconds();
         long exp=DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds();
+        // QWeather JWT: header {alg=EdDSA, kid=credential ID}, payload {sub=project ID, iat, exp, iss=user ID (Q…)}.
         string header=Base64Url("{\"alg\":\"EdDSA\",\"kid\":\""+EscapeJson(s.WeatherCredentialId)+"\"}");
-        string payload=Base64Url("{\"sub\":\""+EscapeJson(s.WeatherProjectId)+"\",\"iat\":"+iat.ToString(CultureInfo.InvariantCulture)+",\"exp\":"+exp.ToString(CultureInfo.InvariantCulture)+"}");
+        string payload=Base64Url("{\"sub\":\""+EscapeJson(s.WeatherProjectId)+"\",\"iat\":"+iat.ToString(CultureInfo.InvariantCulture)+",\"exp\":"+exp.ToString(CultureInfo.InvariantCulture)+",\"iss\":\""+EscapeJson(s.WeatherIssuer)+"\"}");
         string signing=header+"."+payload;
         byte[] data=Encoding.UTF8.GetBytes(signing);
         ISigner signer=SignerUtilities.GetSigner("Ed25519");

@@ -49,12 +49,15 @@ internal sealed class WeatherView : UserControl
         var projectField=Placeholder(projectInput,Localization.Text("Project ID from your QWeather console"));projectField.Margin=new(0,2,0,2);
         var credentialInput=UI.Input("QWeather credential ID",app.Settings.WeatherCredentialId,"");UI.Named(credentialInput,"QWeather credential ID");
         var credentialField=Placeholder(credentialInput,Localization.Text("JWT credential ID from your QWeather console"));credentialField.Margin=new(0,2,0,2);
+        var issuerInput=UI.Input("QWeather user ID",app.Settings.WeatherIssuer,"");UI.Named(issuerInput,"QWeather user ID");
+        var issuerField=Placeholder(issuerInput,Localization.Text("Your QWeather user ID, for example Q1234ABCDE"));issuerField.Margin=new(0,2,0,2);
         void CommitProject(){string value=projectInput.Text.Trim();if(app.Settings.WeatherProjectId!=value){app.Settings.WeatherProjectId=value;app.ChangeSettings();}}
         void CommitCredential(){string value=credentialInput.Text.Trim();if(app.Settings.WeatherCredentialId!=value){app.Settings.WeatherCredentialId=value;app.ChangeSettings();}}
-        foreach(var box in new[]{projectInput,credentialInput})
+        void CommitIssuer(){string value=issuerInput.Text.Trim();if(app.Settings.WeatherIssuer!=value){app.Settings.WeatherIssuer=value;app.ChangeSettings();}}
+        foreach(var box in new[]{projectInput,credentialInput,issuerInput})
         {
-            box.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitProject();CommitCredential();e.Handled=true;}};
-            box.LostFocus+=(_,_)=>{CommitProject();CommitCredential();};
+            box.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitProject();CommitCredential();CommitIssuer();e.Handled=true;}};
+            box.LostFocus+=(_,_)=>{CommitProject();CommitCredential();CommitIssuer();};
         }
         var privateKeyBox=new TextBox{AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,FontSize=10,Height=70,Text=app.Settings.WeatherPrivateKey,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
         UI.Named(privateKeyBox,"QWeather private key");
@@ -90,6 +93,7 @@ internal sealed class WeatherView : UserControl
         location.Children.Add(keyField);
         location.Children.Add(projectField);
         location.Children.Add(credentialField);
+        location.Children.Add(issuerField);
         location.Children.Add(privateField);
         location.Children.Add(jwtButtons);
         location.Children.Add(publicField);
@@ -100,7 +104,7 @@ internal sealed class WeatherView : UserControl
             bool qw=app.Settings.WeatherSource=="qweather";
             bool jwt=app.Settings.WeatherAuthMode=="jwt";
             keyField.Visibility=qw&&!jwt?Visibility.Visible:Visibility.Collapsed;
-            projectField.Visibility=credentialField.Visibility=privateField.Visibility=publicField.Visibility=jwtButtons.Visibility=qw&&jwt?Visibility.Visible:Visibility.Collapsed;
+            projectField.Visibility=credentialField.Visibility=issuerField.Visibility=privateField.Visibility=publicField.Visibility=jwtButtons.Visibility=qw&&jwt?Visibility.Visible:Visibility.Collapsed;
             hostField.Visibility=authMode.Visibility=guide.Visibility=qw?Visibility.Visible:Visibility.Collapsed;
         }
         RefreshAuthVisibility();
@@ -152,7 +156,7 @@ internal sealed class WeatherView : UserControl
         }
         var note=UI.Text(Localization.Text("The free plan covers current conditions, 24 hourly and 7 daily forecasts. Your key stays in local settings."),11,UI.Muted);
         note.TextWrapping=TextWrapping.Wrap;note.Margin=new(0,12,0,0);panel.Children.Add(note);
-        var jwtNote=UI.Text(Localization.Text("JSON Web Token mode: pick Ed25519 when creating the JWT credential in the console, generate the key pair here, upload the copied public key, then fill in the project ID and credential ID."),11,UI.Muted);
+        var jwtNote=UI.Text(Localization.Text("JSON Web Token mode: pick Ed25519 when creating the JWT credential in the console, generate the key pair here, upload the copied public key, then fill in the project ID, credential ID and your user ID (Q…)."),11,UI.Muted);
         jwtNote.TextWrapping=TextWrapping.Wrap;jwtNote.Margin=new(0,6,0,0);panel.Children.Add(jwtNote);
         var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new(0,16,0,0)};
         var docs=UI.Button("Authentication docs",()=>ShortcutService.Open(new(){Target="https://developers.qweather.com/docs/configuration/authentication/"}));docs.Margin=new(0,0,8,0);
@@ -207,7 +211,7 @@ internal sealed class WeatherView : UserControl
         {
             if(app.Settings.WeatherAuthMode=="jwt")
             {
-                if(app.Settings.WeatherProjectId.Length==0||app.Settings.WeatherCredentialId.Length==0){status.Text=Localization.Text("Enter your QWeather project ID, credential ID and private key first.");return;}
+                if(app.Settings.WeatherProjectId.Length==0||app.Settings.WeatherCredentialId.Length==0||app.Settings.WeatherIssuer.Length==0){status.Text=Localization.Text("Enter your QWeather project ID, credential ID, user ID and private key first.");return;}
                 if(app.Settings.WeatherPrivateKey.Length==0){status.Text=Localization.Text("Generate a QWeather key pair and keep the private key first.");return;}
                 if(!WeatherService.JwtReady(app.Settings)){status.Text=Localization.Text("QWeather private key is invalid.");return;}
             }
