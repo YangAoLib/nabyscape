@@ -40,12 +40,15 @@ internal sealed class WeatherView : UserControl
         var options=new ComboBox{ItemsSource=new[]{"Celsius","Fahrenheit"},SelectedItem=app.Settings.WeatherUnits,MinHeight=30,Margin=new(0,8,0,8)};UI.Named(options,"Weather temperature units");options.SelectionChanged+=(_,_)=>{if(options.SelectedItem is string unit && app.Settings.WeatherUnits!=unit){app.Settings.WeatherUnits=unit;app.ChangeSettings();}};location.Children.Add(options);
         var sources=new ComboBox{ItemsSource=new[]{Localization.Text("NMC · China weather"),Localization.Text("QWeather · China hourly"),Localization.Text("Open-Meteo · International")},SelectedIndex=app.Settings.WeatherSource switch{"nmc"=>0,"qweather"=>1,_=>2},MinHeight=30,Margin=new(0,0,0,2)};UI.Named(sources,"Weather source");sources.SelectionChanged+=(_,_)=>{string code=sources.SelectedIndex switch{0=>"nmc",1=>"qweather",_=>"open-meteo"};if(app.Settings.WeatherSource!=code){app.Settings.WeatherSource=code;app.ChangeSettings();}};location.Children.Add(sources);
         var authMode=new ComboBox{ItemsSource=new[]{Localization.Text("API key"),Localization.Text("JSON Web Token")},SelectedIndex=app.Settings.WeatherAuthMode=="jwt"?1:0,MinHeight=30,Margin=new(0,2,0,2)};UI.Named(authMode,"QWeather authentication");
-        var keyInput=UI.Input("QWeather API key",app.Settings.WeatherApiKey,"");keyInput.Margin=new(0,2,0,2);UI.Named(keyInput,"QWeather API key");
+        var keyInput=UI.Input("QWeather API key",app.Settings.WeatherApiKey,"");UI.Named(keyInput,"QWeather API key");
+        var keyField=Placeholder(keyInput,Localization.Text("Paste your QWeather API key"));keyField.Margin=new(0,2,0,2);
         void CommitKey(){string value=keyInput.Text.Trim();if(app.Settings.WeatherApiKey!=value){app.Settings.WeatherApiKey=value;app.ChangeSettings();}}
         keyInput.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitKey();e.Handled=true;}};
         keyInput.LostFocus+=(_,_)=>CommitKey();
-        var projectInput=UI.Input("QWeather project ID",app.Settings.WeatherProjectId,"");projectInput.Margin=new(0,2,0,2);UI.Named(projectInput,"QWeather project ID");
-        var credentialInput=UI.Input("QWeather credential ID",app.Settings.WeatherCredentialId,"");credentialInput.Margin=new(0,2,0,2);UI.Named(credentialInput,"QWeather credential ID");
+        var projectInput=UI.Input("QWeather project ID",app.Settings.WeatherProjectId,"");UI.Named(projectInput,"QWeather project ID");
+        var projectField=Placeholder(projectInput,Localization.Text("Project ID from your QWeather console"));projectField.Margin=new(0,2,0,2);
+        var credentialInput=UI.Input("QWeather credential ID",app.Settings.WeatherCredentialId,"");UI.Named(credentialInput,"QWeather credential ID");
+        var credentialField=Placeholder(credentialInput,Localization.Text("JWT credential ID from your QWeather console"));credentialField.Margin=new(0,2,0,2);
         void CommitProject(){string value=projectInput.Text.Trim();if(app.Settings.WeatherProjectId!=value){app.Settings.WeatherProjectId=value;app.ChangeSettings();}}
         void CommitCredential(){string value=credentialInput.Text.Trim();if(app.Settings.WeatherCredentialId!=value){app.Settings.WeatherCredentialId=value;app.ChangeSettings();}}
         foreach(var box in new[]{projectInput,credentialInput})
@@ -53,8 +56,9 @@ internal sealed class WeatherView : UserControl
             box.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitProject();CommitCredential();e.Handled=true;}};
             box.LostFocus+=(_,_)=>{CommitProject();CommitCredential();};
         }
-        var privateKeyBox=new TextBox{AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,FontSize=10,Height=70,Text=app.Settings.WeatherPrivateKey,Margin=new(0,2,0,2),VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+        var privateKeyBox=new TextBox{AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,FontSize=10,Height=70,Text=app.Settings.WeatherPrivateKey,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
         UI.Named(privateKeyBox,"QWeather private key");
+        var privateField=Placeholder(privateKeyBox,Localization.Text("Generate a key pair, or paste a PKCS#8 private key PEM"),true);privateField.Margin=new(0,2,0,2);
         void CommitPrivate(){string value=privateKeyBox.Text.Trim();if(app.Settings.WeatherPrivateKey!=value){app.Settings.WeatherPrivateKey=value;app.ChangeSettings();}}
         privateKeyBox.LostFocus+=(_,_)=>CommitPrivate();
         var jwtButtons=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(0,2,0,4)};
@@ -65,7 +69,8 @@ internal sealed class WeatherView : UserControl
             status.Text=Localization.Text("Public key copied. Upload it to your QWeather console credential.");
         });
         jwtButtons.Children.Add(generate);
-        var hostInput=UI.Input("QWeather API host",app.Settings.WeatherApiHost,"");hostInput.Margin=new(0,2,0,8);UI.Named(hostInput,"QWeather API host");
+        var hostInput=UI.Input("QWeather API host",app.Settings.WeatherApiHost,"");UI.Named(hostInput,"QWeather API host");
+        var hostField=Placeholder(hostInput,Localization.Text("Your API Host, for example abc.re.qweatherapi.com"));hostField.Margin=new(0,2,0,8);
         void CommitHost(){string value=hostInput.Text.Trim();if(app.Settings.WeatherApiHost!=value){app.Settings.WeatherApiHost=value;app.ChangeSettings();}}
         hostInput.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitHost();e.Handled=true;}};
         hostInput.LostFocus+=(_,_)=>CommitHost();
@@ -73,20 +78,20 @@ internal sealed class WeatherView : UserControl
         authMode.SelectionChanged+=(_,_)=>{string mode=authMode.SelectedIndex==1?"jwt":"apikey";if(app.Settings.WeatherAuthMode!=mode){app.Settings.WeatherAuthMode=mode;app.ChangeSettings();}RefreshAuthVisibility();};
         sources.SelectionChanged+=(_,_)=>RefreshAuthVisibility();
         location.Children.Add(authMode);
-        location.Children.Add(keyInput);
-        location.Children.Add(projectInput);
-        location.Children.Add(credentialInput);
-        location.Children.Add(privateKeyBox);
+        location.Children.Add(keyField);
+        location.Children.Add(projectField);
+        location.Children.Add(credentialField);
+        location.Children.Add(privateField);
         location.Children.Add(jwtButtons);
-        location.Children.Add(hostInput);
+        location.Children.Add(hostField);
         location.Children.Add(guide);
         void RefreshAuthVisibility()
         {
             bool qw=app.Settings.WeatherSource=="qweather";
             bool jwt=app.Settings.WeatherAuthMode=="jwt";
-            keyInput.Visibility=qw&&!jwt?Visibility.Visible:Visibility.Collapsed;
-            projectInput.Visibility=credentialInput.Visibility=privateKeyBox.Visibility=jwtButtons.Visibility=qw&&jwt?Visibility.Visible:Visibility.Collapsed;
-            hostInput.Visibility=authMode.Visibility=guide.Visibility=qw?Visibility.Visible:Visibility.Collapsed;
+            keyField.Visibility=qw&&!jwt?Visibility.Visible:Visibility.Collapsed;
+            projectField.Visibility=credentialField.Visibility=privateField.Visibility=jwtButtons.Visibility=qw&&jwt?Visibility.Visible:Visibility.Collapsed;
+            hostField.Visibility=authMode.Visibility=guide.Visibility=qw?Visibility.Visible:Visibility.Collapsed;
         }
         RefreshAuthVisibility();
         var sourceHint=UI.Text(Localization.Text("NMC works in mainland China without a key. QWeather needs a free key from qweather.com. Open-Meteo suits other regions."),11,UI.Muted);sourceHint.Margin=new(0,2,0,8);location.Children.Add(sourceHint);
@@ -104,6 +109,21 @@ internal sealed class WeatherView : UserControl
         city.Text=app.Settings.WeatherCity.Length>0?app.Settings.WeatherCity:"Your daily outlook";Render(null);
     }
     internal void OpenLocationEditor(){location.Visibility=Visibility.Visible;}
+    // Overlay hint inside the input box; hides as soon as the user types (same pattern as the city search).
+    private static Grid Placeholder(TextBox box,string text,bool top=false)
+    {
+        box.Margin=new(0);
+        var host=new Grid();
+        host.Children.Add(box);
+        var hint=UI.Text(text,11,UI.Muted);
+        hint.IsHitTestVisible=false;
+        hint.VerticalAlignment=top?VerticalAlignment.Top:VerticalAlignment.Center;
+        hint.Margin=new(11,top?6:0,8,0);
+        hint.Visibility=box.Text.Length==0?Visibility.Visible:Visibility.Collapsed;
+        box.TextChanged+=(_,_)=>hint.Visibility=box.Text.Length==0?Visibility.Visible:Visibility.Collapsed;
+        host.Children.Add(hint);
+        return host;
+    }
     internal void ShowQWeatherGuide()
     {
         var owner=Window.GetWindow(this);
