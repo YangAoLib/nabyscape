@@ -239,7 +239,7 @@ internal sealed class WeatherService : IDisposable
     private static int QwToCode(double raw)
     {
         int icon=(int)raw;
-        return icon switch{100 or 150=>0,102 or 103 or 152 or 153=>1,101 or 151=>2,104=>3,309=>51,305 or 314 or 350 or 399=>61,306 or 315=>63,307 or 308 or 310=>65,311 or 312 or 317 or 318=>82,300 or 301=>80,313 or 316=>67,318=>82,400 or 408 or 499=>71,401 or 409=>73,402 or 403 or 410=>75,404 or 405 or 406 or 456=>68,407 or 457=>85,>=500 and <=515=>45,_=>icon>=900?0:icon==0?0:2};
+        return icon switch{100 or 150=>0,102 or 103 or 152 or 153=>1,101 or 151=>2,104=>3,309=>51,305 or 314 or 350 or 399=>61,306 or 315=>63,307 or 308 or 310=>65,311 or 312 or 317 or 318=>82,300 or 301=>80,313 or 316=>67,400 or 408 or 499=>71,401 or 409=>73,402 or 403 or 410=>75,404 or 405 or 406 or 456=>68,407 or 457=>85,>=500 and <=515=>45,_=>icon>=900?0:icon==0?0:2};
     }
     private static async Task<WeatherPlace[]> SearchNmc(string city,CancellationToken token)
     {
