@@ -46,6 +46,10 @@ internal sealed class WeatherView : UserControl
         keyInput.Visibility=app.Settings.WeatherSource=="qweather"?Visibility.Visible:Visibility.Collapsed;
         sources.SelectionChanged+=(_,_)=>keyInput.Visibility=sources.SelectedIndex==1?Visibility.Visible:Visibility.Collapsed;
         location.Children.Add(keyInput);
+        var guide=UI.CaptionButton("How to get a QWeather key?",ShowQWeatherGuide);guide.HorizontalAlignment=HorizontalAlignment.Left;guide.Margin=new(0,0,0,6);
+        guide.Visibility=keyInput.Visibility;
+        sources.SelectionChanged+=(_,_)=>guide.Visibility=sources.SelectedIndex==1?Visibility.Visible:Visibility.Collapsed;
+        location.Children.Add(guide);
         var sourceHint=UI.Text(Localization.Text("NMC works in mainland China without a key. QWeather needs a free key from qweather.com. Open-Meteo suits other regions."),11,UI.Muted);sourceHint.Margin=new(0,2,0,8);location.Children.Add(sourceHint);
         var list=UI.Scroll(results);list.Tag="panel-content-scroll";list.MaxHeight=150;location.Children.Add(list);location.Margin=new(0,0,0,8);page.Children.Add(location);page.Children.Add(content);
         var footer=new DockPanel{Margin=new(0,6,0,0)};retry=Icons.Button("reset","Refresh weather",()=>_=Reload(true),false,26);retry.Margin=new(0);retry.Background=Brushes.Transparent;DockPanel.SetDock(retry,Dock.Right);footer.Children.Add(retry);footer.Children.Add(status);page.Children.Add(footer);
@@ -61,6 +65,41 @@ internal sealed class WeatherView : UserControl
         city.Text=app.Settings.WeatherCity.Length>0?app.Settings.WeatherCity:"Your daily outlook";Render(null);
     }
     internal void OpenLocationEditor(){location.Visibility=Visibility.Visible;}
+    internal void ShowQWeatherGuide()
+    {
+        var owner=Window.GetWindow(this);
+        var window=new Window{Title=Localization.Text("QWeather key guide"),Width=500,SizeToContent=SizeToContent.Height,ResizeMode=ResizeMode.NoResize,
+            WindowStartupLocation=owner==null?WindowStartupLocation.CenterScreen:WindowStartupLocation.CenterOwner,Background=UI.Brush("#16191F"),
+            Icon=tryLoadIcon()};
+        var panel=new StackPanel{Margin=new(18,16,18,14)};
+        panel.Children.Add(UI.Heading(Localization.Text("Get a free QWeather key"),15));
+        foreach(var step in new[]{
+            Localization.Text("1. Open console.qweather.com and sign up for a free account."),
+            Localization.Text("2. In the console, create a project, then add an API key credential to it."),
+            Localization.Text("3. Copy the key and paste it into the box above."),
+            Localization.Text("4. If your console shows a dedicated API Host, enter it as host|key, for example abc.re.qweatherapi.com|your-key.")})
+        {
+            var line=UI.Text(step,12);line.TextWrapping=TextWrapping.Wrap;line.Margin=new(0,8,0,0);panel.Children.Add(line);
+        }
+        var note=UI.Text(Localization.Text("The free plan covers current conditions, 24 hourly and 7 daily forecasts. Your key stays in local settings."),11,UI.Muted);
+        note.TextWrapping=TextWrapping.Wrap;note.Margin=new(0,12,0,0);panel.Children.Add(note);
+        var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new(0,16,0,0)};
+        var docs=UI.Button("Authentication docs",()=>ShortcutService.Open(new(){Target="https://developers.qweather.com/docs/configuration/authentication/"}));docs.Margin=new(0,0,8,0);
+        var console=UI.Button("Open QWeather console",()=>ShortcutService.Open(new(){Target="https://console.qweather.com/"}));console.Margin=new(0,0,8,0);
+        var done=UI.Button("Done",()=>window.Close(),true);
+        foreach(var button in new[]{docs,console,done})actions.Children.Add(button);
+        panel.Children.Add(actions);window.Content=panel;
+        if(owner!=null)window.ShowDialog();else window.Show();
+    }
+    private static System.Windows.Media.ImageSource? tryLoadIcon()
+    {
+        try
+        {
+            var uri=new Uri("pack://application:,,,/Assets/island.ico");
+            return System.Windows.Media.Imaging.BitmapFrame.Create(uri);
+        }
+        catch(Exception){return null;}
+    }
     private void LoadedView(object sender,RoutedEventArgs e)
     {
         lifetime?.Cancel();lifetime?.Dispose();lifetime=IsVisible?new():null;app.Updated+=Heartbeat;app.SettingsChanged+=Preferences;if(IsVisible)_=Reload();
