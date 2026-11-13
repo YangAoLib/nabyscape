@@ -56,33 +56,33 @@ internal sealed class WeatherService : IDisposable
     internal WeatherSnapshot? Cached {get;private set;}
     internal DateTimeOffset LastAttempt {get;private set;}
     internal WeatherService(Store store){this.store=store;Cached=store.Load<WeatherSnapshot>("weather");}
-    internal static string Key(Settings s)=>s.WeatherSource switch
+    internal static string Key(Settings s)
     {
-        "nmc"=>s.WeatherStationCode.Length>0?"nmc|"+s.WeatherStationCode+"|"+s.WeatherUnits:"",
-        "qweather"=>s.WeatherStationCode.Length>0&&s.WeatherApiKey.Length>0?"qw|"+s.WeatherStationCode+"|"+s.WeatherUnits+"|"+QwKeyPart(s):"",
-        _=>s.WeatherLatitude is {} lat && s.WeatherLongitude is {} lon?FormattableString.Invariant($"{lat:F5},{lon:F5}|{s.WeatherUnits}"):""
-    };
-    // QWeather host comes from its own setting; a "host|key" value pasted into the key box from older builds still works.
+        switch(s.WeatherSource)
+        {
+            case "nmc":return s.WeatherStationCode.Length>0?"nmc|"+s.WeatherStationCode+"|"+s.WeatherUnits:"";
+            case "qweather":
+                (string host,string key)=QwCredential(s);
+                return s.WeatherStationCode.Length>0&&host.Length>0&&key.Length>0?"qw|"+s.WeatherStationCode+"|"+s.WeatherUnits+"|"+QwKeyPart(host,key):"";
+            default:return s.WeatherLatitude is {} lat && s.WeatherLongitude is {} lon?FormattableString.Invariant($"{lat:F5},{lon:F5}|{s.WeatherUnits}"):"";
+        }
+    }
+    // QWeather requires the dedicated API Host every account gets from its console; a "host|key" value pasted into the key box from older builds still works.
     internal static (string Host,string Key) QwCredential(Settings s)
     {
         string host=s.WeatherApiHost.Trim(),key=s.WeatherApiKey.Trim();
         int split=key.IndexOf('|');
         if(split>0){host=key[..split].Trim();key=key[(split+1)..].Trim();}
-        if(host.Length==0)host="devapi.qweather.com";
         return (host,key);
     }
-    private static string QwKeyPart(Settings s)
-    {
-        (string host,string key)=QwCredential(s);
-        return (host.Length>12?host[..12]:host)+"|"+(key.Length>4?key[..4]:key);
-    }
+    private static string QwKeyPart(string host,string key)=>(host.Length>12?host[..12]:host)+"|"+(key.Length>4?key[..4]:key);
     internal async Task<WeatherPlace[]> Search(Settings settings,string city,CancellationToken token)
     {
         city=city.Trim();if(city.Length<2)return Array.Empty<WeatherPlace>();if(city.Length>120)city=city[..120];
         if(settings.WeatherSource=="nmc")return await SearchNmc(city,token);
         if(settings.WeatherSource=="qweather")
         {
-            (string host,string key)=QwCredential(settings);if(key.Length==0)return Array.Empty<WeatherPlace>();
+            (string host,string key)=QwCredential(settings);if(host.Length==0||key.Length==0)return Array.Empty<WeatherPlace>();
             using var doc=await FetchQw("https://"+host+"/geo/v2/city/lookup?location="+Uri.EscapeDataString(city)+"&number=8&lang=zh&key="+Uri.EscapeDataString(key),token);
             if(!doc.RootElement.TryGetProperty("location",out var results)||results.ValueKind!=JsonValueKind.Array)return Array.Empty<WeatherPlace>();
             return results.EnumerateArray().Select(place=>new WeatherPlace(string.Join(" · ",new[]{Text(place,"name"),Text(place,"adm1")}.Where(v=>v.Length>0).Distinct()),0,0,Text(place,"id"))).Where(p=>p.StationCode.Length>0).ToArray();
@@ -183,7 +183,9 @@ internal sealed class WeatherService : IDisposable
     private async Task<WeatherSnapshot> DownloadQweather(Settings s,string key,CancellationToken token)
     {
         if(string.IsNullOrWhiteSpace(s.WeatherStationCode))throw new InvalidOperationException("Choose a city first.");
-        (string host,string apiKeyValue)=QwCredential(s);if(apiKeyValue.Length==0)throw new InvalidOperationException("QWeather API key required.");
+        (string host,string apiKeyValue)=QwCredential(s);
+        if(apiKeyValue.Length==0)throw new InvalidOperationException(Localization.Text("Enter your QWeather API key first."));
+        if(host.Length==0)throw new InvalidOperationException(Localization.Text("QWeather API Host required. Paste the one your console assigns, for example abc.re.qweatherapi.com."));
         string location=s.WeatherStationCode,units=s.WeatherUnits;
         string unit=units=="Fahrenheit"?"i":"m";
         using var now=await FetchQw("https://"+host+"/v7/weather/now?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);

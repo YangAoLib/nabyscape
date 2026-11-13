@@ -43,7 +43,7 @@ internal sealed class WeatherView : UserControl
         void CommitKey(){string value=keyInput.Text.Trim();if(app.Settings.WeatherApiKey!=value){app.Settings.WeatherApiKey=value;app.ChangeSettings();}}
         keyInput.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitKey();e.Handled=true;}};
         keyInput.LostFocus+=(_,_)=>CommitKey();
-        var hostInput=UI.Input("QWeather API host (optional)",app.Settings.WeatherApiHost,"");hostInput.Margin=new(0,2,0,8);UI.Named(hostInput,"QWeather API host");
+        var hostInput=UI.Input("QWeather API host",app.Settings.WeatherApiHost,"");hostInput.Margin=new(0,2,0,8);UI.Named(hostInput,"QWeather API host");
         void CommitHost(){string value=hostInput.Text.Trim();if(app.Settings.WeatherApiHost!=value){app.Settings.WeatherApiHost=value;app.ChangeSettings();}}
         hostInput.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitHost();e.Handled=true;}};
         hostInput.LostFocus+=(_,_)=>CommitHost();
@@ -138,7 +138,11 @@ internal sealed class WeatherView : UserControl
     private async Task Search()
     {
         if(lifetime==null || search.Text.Trim().Length<2){status.Text="Enter at least two letters of your city.";return;}
-        if(app.Settings.WeatherSource=="qweather" && app.Settings.WeatherApiKey.Length==0){status.Text=Localization.Text("Enter your QWeather API key first.");return;}
+        if(app.Settings.WeatherSource=="qweather")
+        {
+            if(app.Settings.WeatherApiKey.Length==0){status.Text=Localization.Text("Enter your QWeather API key first.");return;}
+            if(app.Settings.WeatherApiHost.Length==0 && !app.Settings.WeatherApiKey.Contains('|')){status.Text=Localization.Text("Enter your QWeather API Host from the console first.");return;}
+        }
         searchRequest?.Cancel();searchRequest?.Dispose();searchRequest=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);var request=searchRequest;find.IsEnabled=false;results.Children.Clear();status.Text="Looking for cities…";
         try
         {
@@ -156,7 +160,7 @@ internal sealed class WeatherView : UserControl
     private async Task Reload(bool force=false)
     {
         if(lifetime==null)return;string key=WeatherService.Key(app.Settings);int version=++revision;shownKey=key;city.Text=app.Settings.WeatherCity.Length>0?app.Settings.WeatherCity:"Your daily outlook";
-        if(key.Length==0){shown=null;busy=false;Render(null);status.Text="Choose a city to see today's weather.";retry.IsEnabled=false;return;}
+        if(key.Length==0){shown=null;busy=false;Render(null);status.Text=app.Settings.WeatherSource=="qweather"&&app.Settings.WeatherCity.Length>0?Localization.Text("Fill in your QWeather API key and API Host above."):"Choose a city to see today's weather.";retry.IsEnabled=false;return;}
         if(shown?.Key!=key){shown=app.Weather.Cached?.Key==key?app.Weather.Cached:null;Render(shown);}
         busy=true;retry.IsEnabled=false;status.Text="Updating weather…";
         try
