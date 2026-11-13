@@ -69,6 +69,7 @@ internal sealed class WeatherView : UserControl
         void CommitHost(){string value=hostInput.Text.Trim();if(app.Settings.WeatherApiHost!=value){app.Settings.WeatherApiHost=value;app.ChangeSettings();}}
         hostInput.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitHost();e.Handled=true;}};
         hostInput.LostFocus+=(_,_)=>CommitHost();
+        var guide=UI.CaptionButton("How to get a QWeather key?",ShowQWeatherGuide);guide.HorizontalAlignment=HorizontalAlignment.Left;guide.Margin=new(0,0,0,6);
         authMode.SelectionChanged+=(_,_)=>{string mode=authMode.SelectedIndex==1?"jwt":"apikey";if(app.Settings.WeatherAuthMode!=mode){app.Settings.WeatherAuthMode=mode;app.ChangeSettings();}RefreshAuthVisibility();};
         sources.SelectionChanged+=(_,_)=>RefreshAuthVisibility();
         location.Children.Add(authMode);
@@ -78,7 +79,6 @@ internal sealed class WeatherView : UserControl
         location.Children.Add(privateKeyBox);
         location.Children.Add(jwtButtons);
         location.Children.Add(hostInput);
-        var guide=UI.CaptionButton("How to get a QWeather key?",ShowQWeatherGuide);guide.HorizontalAlignment=HorizontalAlignment.Left;guide.Margin=new(0,0,0,6);
         location.Children.Add(guide);
         void RefreshAuthVisibility()
         {

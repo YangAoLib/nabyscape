@@ -348,6 +348,11 @@ internal sealed class WeatherService : IDisposable
         if(obj is null || obj.Type!="PRIVATE KEY")throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
         return Ed25519PrivateKeyParameters.CreateFromPrivateKeyInfo(PrivateKeyInfo.GetInstance(obj.Content));
     }
+    internal static bool JwtReady(Settings s)
+    {
+        try{ImportPrivateKey(s.WeatherPrivateKey);return true;}
+        catch(Exception){return false;}
+    }
     internal static Ed25519PublicKeyParameters ImportPublicKey(string pem)
     {
         if(!pem.Contains('-'))pem="-----BEGIN PUBLIC KEY-----\n"+pem+"\n-----END PUBLIC KEY-----";
