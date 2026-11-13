@@ -5,14 +5,10 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.Pkcs;
-using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
@@ -339,14 +335,15 @@ internal sealed class WeatherService : IDisposable
         return doc;
     }
     private static bool JwtConfigured(Settings s)=>s.WeatherProjectId.Length>0&&s.WeatherCredentialId.Length>0&&s.WeatherPrivateKey.Length>0;
-    // .NET has no public Ed25519 API, so the PEM handling and EdDSA signatures use BouncyCastle.
+    // .NET has no public Ed25519 API, so PEM handling and EdDSA signatures use BouncyCastle.
+    // Reading goes through PemReader (PrivateKeyFactory/PublicKeyFactory); writing uses the fixed
+    // Ed25519 DER templates, so no version-sensitive ASN.1 factory APIs are needed.
     internal static Ed25519PrivateKeyParameters ImportPrivateKey(string pem)
     {
         if(!pem.Contains('-'))pem="-----BEGIN PRIVATE KEY-----\n"+pem+"\n-----END PRIVATE KEY-----";
         using var reader=new StringReader(pem);
-        var obj=new PemReader(reader).ReadPemObject();
-        if(obj is null || obj.Type!="PRIVATE KEY")throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
-        return Ed25519PrivateKeyParameters.CreateFromPrivateKeyInfo(PrivateKeyInfo.GetInstance(obj.Content));
+        if(new PemReader(reader).ReadObject() is AsymmetricCipherKeyPair pair && pair.Private is Ed25519PrivateKeyParameters key)return key;
+        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
     }
     internal static bool JwtReady(Settings s)
     {
@@ -357,9 +354,8 @@ internal sealed class WeatherService : IDisposable
     {
         if(!pem.Contains('-'))pem="-----BEGIN PUBLIC KEY-----\n"+pem+"\n-----END PUBLIC KEY-----";
         using var reader=new StringReader(pem);
-        var obj=new PemReader(reader).ReadPemObject();
-        if(obj is null || obj.Type!="PUBLIC KEY")throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
-        return new Ed25519PublicKeyParameters(obj.Content,0);
+        if(new PemReader(reader).ReadObject() is Ed25519PublicKeyParameters key)return key;
+        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
     }
     private static string EnsureJwt(Settings s)
     {
@@ -385,15 +381,31 @@ internal sealed class WeatherService : IDisposable
         var generator=new Ed25519KeyPairGenerator();
         generator.Init(new Ed25519KeyGenerationParameters(new SecureRandom()));
         AsymmetricCipherKeyPair pair=generator.GenerateKeyPair();
-        return (Pem("PRIVATE KEY",PrivateKeyInfoFactory.CreatePrivateKeyInfo((Ed25519PrivateKeyParameters)pair.Private)),
-            Pem("PUBLIC KEY",SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo((Ed25519PublicKeyParameters)pair.Public)));
+        return (PrivatePem((Ed25519PrivateKeyParameters)pair.Private),PublicPem((Ed25519PublicKeyParameters)pair.Public));
     }
-    private static string Pem(string title,Asn1Object info)
+    // Ed25519 PKCS#8: SEQUENCE { INTEGER 0, OID 1.3.101.112, OCTET STRING { OCTET STRING seed } }.
+    private static string PrivatePem(Ed25519PrivateKeyParameters key)
     {
-        using var writer=new StringWriter();
-        new PemWriter(writer).WriteObject(info);
-        writer.Flush();
-        return writer.ToString();
+        byte[] der=new byte[48];der[0]=0x30;der[1]=0x2E;der[2]=0x02;der[3]=0x01;der[4]=0x00;
+        der[5]=0x30;der[6]=0x05;der[7]=0x06;der[8]=0x03;der[9]=0x2B;der[10]=0x65;der[11]=0x70;
+        der[12]=0x04;der[13]=0x22;der[14]=0x04;der[15]=0x20;
+        byte[] seed=key.GetEncoded();Array.Copy(seed,0,der,16,32);
+        return "-----BEGIN PRIVATE KEY-----\n"+PemBody(der)+"\n-----END PRIVATE KEY-----";
+    }
+    // Ed25519 SPKI: SEQUENCE { OID 1.3.101.112, BIT STRING publicKey }.
+    private static string PublicPem(Ed25519PublicKeyParameters key)
+    {
+        byte[] der=new byte[44];der[0]=0x30;der[1]=0x2A;der[2]=0x30;der[3]=0x05;der[4]=0x06;der[5]=0x03;
+        der[6]=0x2B;der[7]=0x65;der[8]=0x70;der[9]=0x03;der[10]=0x21;der[11]=0x00;
+        byte[] encoded=key.GetEncoded();Array.Copy(encoded,0,der,12,32);
+        return "-----BEGIN PUBLIC KEY-----\n"+PemBody(der)+"\n-----END PUBLIC KEY-----";
+    }
+    private static string PemBody(byte[] der)
+    {
+        string base64=Convert.ToBase64String(der);
+        var lines=new StringBuilder();
+        for(int i=0;i<base64.Length;i+=64)lines.AppendLine(base64.Substring(i,Math.Min(64,base64.Length-i)));
+        return lines.ToString().TrimEnd('\r','\n');
     }
     private static string Base64Url(string text)=>Base64Url(Encoding.UTF8.GetBytes(text));
     private static string Base64Url(byte[] bytes)=>Convert.ToBase64String(bytes).TrimEnd('=').Replace('+','-').Replace('/','_');
