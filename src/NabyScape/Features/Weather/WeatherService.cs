@@ -386,23 +386,40 @@ internal sealed class WeatherService : IDisposable
         var generator=new Ed25519KeyPairGenerator();
         generator.Init(new Ed25519KeyGenerationParameters(new SecureRandom()));
         AsymmetricCipherKeyPair pair=generator.GenerateKeyPair();
-        return (PrivatePem((Ed25519PrivateKeyParameters)pair.Private),PublicPem((Ed25519PublicKeyParameters)pair.Public));
+        return (PrivatePem(Ed25519SeedBytes((Ed25519PrivateKeyParameters)pair.Private)),PublicPem(Ed25519PublicBytes((Ed25519PublicKeyParameters)pair.Public)));
+    }
+    // GetEncoded() semantics differ between BouncyCastle versions (raw 32 bytes, SPKI or PKCS#8);
+    // normalize every known shape to the bare 32-byte seed / public key.
+    internal static byte[] Ed25519SeedBytes(Ed25519PrivateKeyParameters key)
+    {
+        byte[] encoded=key.GetEncoded();
+        if(encoded.Length==32)return encoded;
+        if(encoded.Length==48 && encoded[0]==0x30 && encoded[14]==0x04 && encoded[15]==0x20)return encoded.Skip(16).Take(32).ToArray();
+        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
+    }
+    internal static byte[] Ed25519PublicBytes(Ed25519PublicKeyParameters key)
+    {
+        byte[] encoded=key.GetEncoded();
+        if(encoded.Length==32)return encoded;
+        if(encoded.Length==44 && encoded[0]==0x30 && encoded[12]==0x03)return encoded.Skip(14).Take(32).ToArray();
+        if(encoded.Length==48 && encoded[0]==0x30 && encoded[14]==0x04)return encoded.Skip(16).Take(32).ToArray();
+        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
     }
     // Ed25519 PKCS#8: SEQUENCE { INTEGER 0, OID 1.3.101.112, OCTET STRING { OCTET STRING seed } }.
-    private static string PrivatePem(Ed25519PrivateKeyParameters key)
+    private static string PrivatePem(byte[] seed)
     {
         byte[] der=new byte[48];der[0]=0x30;der[1]=0x2E;der[2]=0x02;der[3]=0x01;der[4]=0x00;
         der[5]=0x30;der[6]=0x05;der[7]=0x06;der[8]=0x03;der[9]=0x2B;der[10]=0x65;der[11]=0x70;
         der[12]=0x04;der[13]=0x22;der[14]=0x04;der[15]=0x20;
-        byte[] seed=key.GetEncoded();Array.Copy(seed,0,der,16,32);
+        Array.Copy(seed,0,der,16,32);
         return "-----BEGIN PRIVATE KEY-----\n"+PemBody(der)+"\n-----END PRIVATE KEY-----";
     }
     // Ed25519 SPKI: SEQUENCE { OID 1.3.101.112, BIT STRING publicKey }.
-    private static string PublicPem(Ed25519PublicKeyParameters key)
+    private static string PublicPem(byte[] publicKey)
     {
         byte[] der=new byte[44];der[0]=0x30;der[1]=0x2A;der[2]=0x30;der[3]=0x05;der[4]=0x06;der[5]=0x03;
         der[6]=0x2B;der[7]=0x65;der[8]=0x70;der[9]=0x03;der[10]=0x21;der[11]=0x00;
-        byte[] encoded=key.GetEncoded();Array.Copy(encoded,0,der,12,32);
+        Array.Copy(publicKey,0,der,12,32);
         return "-----BEGIN PUBLIC KEY-----\n"+PemBody(der)+"\n-----END PUBLIC KEY-----";
     }
     private static string PemBody(byte[] der)
