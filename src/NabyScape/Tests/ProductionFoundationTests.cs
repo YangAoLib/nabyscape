@@ -85,7 +85,7 @@ internal static class ProductionFoundationTests
         {
             var s=new Settings{UiLanguage="invalid",AccessibilityTextScale=double.NaN,AccessibilityHighContrast=true};s.Normalize();
             Assert(s.UiLanguage=="en" && s.AccessibilityTextScale==1 && s.AccessibilityHighContrast,"Invalid accessibility preferences were not normalized.");
-            foreach(string language in new[]{"es","id","en"}){s.UiLanguage=language;s.AccessibilityTextScale=9;s.Normalize();Assert(s.UiLanguage==language && s.AccessibilityTextScale==1.5,"Valid language or text scale bound changed.");}
+            foreach(string language in new[]{"es","id","zh","en"}){s.UiLanguage=language;s.AccessibilityTextScale=9;s.Normalize();Assert(s.UiLanguage==language && s.AccessibilityTextScale==1.5,"Valid language or text scale bound changed.");}
         });
     }
 }

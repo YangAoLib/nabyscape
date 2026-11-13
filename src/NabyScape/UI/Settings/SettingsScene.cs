@@ -199,7 +199,7 @@ internal sealed class SettingsScene : FrameworkElement
             case "About NabyScape":
                 Text("NabyScape",24,20,23,true);Text("Windows 11 · x64",24,60,12,false,muted);Text("Version "+typeof(App).Assembly.GetName().Version!.ToString(3),250,31,12);break;
             case "Language & accessibility":
-                Text("Language",24,18,12,true);Keys(s.UiLanguage=="es"?"Español":s.UiLanguage=="id"?"Bahasa Indonesia":"English",210,12,176);
+                Text("Language",24,18,12,true);Keys(s.UiLanguage=="es"?"Español":s.UiLanguage=="id"?"Bahasa Indonesia":s.UiLanguage=="zh"?"中文":"English",210,12,176);
                 Text("Text size",24,55,12,true);Text((s.AccessibilityTextScale*100).ToString("0",CultureInfo.InvariantCulture)+"%",218,55,12);Toggle(350,55,s.AccessibilityHighContrast);Note("Language · text size · contrast · Windows motion preferences");break;
             case "Private diagnostics":
                 Text("Review before sharing",24,18,16,true);Text("App version · service status · controlled events",24,48,11,false,muted);Keys("Copy",24,73,95);Keys("Export",133,73,95);Note("No automatic upload · conversations and credentials excluded");break;

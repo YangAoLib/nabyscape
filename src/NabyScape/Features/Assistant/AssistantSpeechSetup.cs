@@ -13,8 +13,8 @@ internal sealed partial class AssistantProviderSettings
         var service=ai.Speech;var p=new StackPanel();p.Children.Add(UI.Heading("Voice models for your PC",16));
         p.Children.Add(UI.Text("Choose a language, use the suggested models, then Install & use. Nothing downloads until you choose to install.",11,UI.Muted));
         var hardware=UI.Text("Hardware has not been scanned yet.",11,UI.Muted);hardware.Margin=new(0,10,0,6);p.Children.Add(hardware);
-        var language=new ComboBox{ItemsSource=new[]{"English","Spanish","French","German","Portuguese","Italian","Japanese","Korean","Russian","Arabic","Dutch","Turkish","Hindi","Vietnamese","Indonesian"}};
-        string[] codes={"en","es","fr","de","pt","it","ja","ko","ru","ar","nl","tr","hi","vi","id"};string selectedLanguage=(SpeechCatalog.Tts.FirstOrDefault(v=>v.Id==ai.Options.LocalVoice.ManagedTts)??SpeechCatalog.Tts[0]).Language;
+        var language=new ComboBox{ItemsSource=new[]{"English","Spanish","French","German","Portuguese","Italian","Japanese","Korean","Russian","Arabic","Dutch","Turkish","Hindi","Vietnamese","Indonesian","Chinese"}};
+        string[] codes={"en","es","fr","de","pt","it","ja","ko","ru","ar","nl","tr","hi","vi","id","zh"};string selectedLanguage=(SpeechCatalog.Tts.FirstOrDefault(v=>v.Id==ai.Options.LocalVoice.ManagedTts)??SpeechCatalog.Tts[0]).Language;
         if(selectedLanguage is "any" or "multi")selectedLanguage=ai.Options.LocalVoice.SpeechLanguage;
         language.SelectedIndex=Math.Max(0,Array.IndexOf(codes,selectedLanguage));Label(p,"Language for spoken replies",language);
         var priority=new ComboBox{ItemsSource=new[]{"Light","Balanced","Quality"},SelectedItem=ai.Options.LocalVoice.SpeechPreference};if(priority.SelectedIndex<0)priority.SelectedIndex=1;Label(p,"Performance preference",priority);

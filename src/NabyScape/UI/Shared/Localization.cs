@@ -20,7 +20,8 @@ internal static class Localization
     {
         if (!LocalizationCatalog.English.TryGetValue(english, out var entry)) return english;
         return Language switch { "es" when entry.Spanish.Length > 0 => entry.Spanish,
-            "id" when entry.Indonesian.Length > 0 => entry.Indonesian, _ => english };
+            "id" when entry.Indonesian.Length > 0 => entry.Indonesian,
+            "zh" when entry.Chinese.Length > 0 => entry.Chinese, _ => english };
     }
 
     internal static string Format(string english, params object[] values)
