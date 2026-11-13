@@ -4,6 +4,8 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -63,6 +65,9 @@ internal sealed class WeatherService : IDisposable
             case "nmc":return s.WeatherStationCode.Length>0?"nmc|"+s.WeatherStationCode+"|"+s.WeatherUnits:"";
             case "qweather":
                 (string host,string key)=QwCredential(s);
+                if(s.WeatherAuthMode=="jwt")
+                    return s.WeatherStationCode.Length>0&&host.Length>0&&s.WeatherProjectId.Length>0&&s.WeatherCredentialId.Length>0&&s.WeatherPrivateKey.Length>0
+                        ?"qw|"+s.WeatherStationCode+"|"+s.WeatherUnits+"|jwt|"+QwKeyPart(host,s.WeatherProjectId+"."+s.WeatherCredentialId):"";
                 return s.WeatherStationCode.Length>0&&host.Length>0&&key.Length>0?"qw|"+s.WeatherStationCode+"|"+s.WeatherUnits+"|"+QwKeyPart(host,key):"";
             default:return s.WeatherLatitude is {} lat && s.WeatherLongitude is {} lon?FormattableString.Invariant($"{lat:F5},{lon:F5}|{s.WeatherUnits}"):"";
         }
@@ -82,8 +87,11 @@ internal sealed class WeatherService : IDisposable
         if(settings.WeatherSource=="nmc")return await SearchNmc(city,token);
         if(settings.WeatherSource=="qweather")
         {
-            (string host,string key)=QwCredential(settings);if(host.Length==0||key.Length==0)return Array.Empty<WeatherPlace>();
-            using var doc=await FetchQw("https://"+host+"/geo/v2/city/lookup?location="+Uri.EscapeDataString(city)+"&number=8&lang=zh&key="+Uri.EscapeDataString(key),token);
+            (string host,string key)=QwCredential(settings);
+            if(host.Length==0)return Array.Empty<WeatherPlace>();
+            if(settings.WeatherAuthMode=="jwt"){if(!JwtConfigured(settings))return Array.Empty<WeatherPlace>();}
+            else if(key.Length==0)return Array.Empty<WeatherPlace>();
+            using var doc=await FetchQw(settings,host,"/geo/v2/city/lookup?location="+Uri.EscapeDataString(city)+"&number=8",token);
             if(!doc.RootElement.TryGetProperty("location",out var results)||results.ValueKind!=JsonValueKind.Array)return Array.Empty<WeatherPlace>();
             return results.EnumerateArray().Select(place=>new WeatherPlace(string.Join(" · ",new[]{Text(place,"name"),Text(place,"adm1")}.Where(v=>v.Length>0).Distinct()),0,0,Text(place,"id"))).Where(p=>p.StationCode.Length>0).ToArray();
         }
@@ -179,19 +187,19 @@ internal sealed class WeatherService : IDisposable
         int img=(int)raw;
         return img switch{0=>0,1=>1,2=>3,3=>80,4 or 5=>95,6=>61,7=>63,8 or 9=>65,10 or 11=>82,12=>85,13=>71,14=>73,15 or 16=>75,17 or 28 or 32 or 33 or 34 or 53=>45,18=>67,20=>61,21=>63,22 or 23=>65,24=>82,25=>71,26=>73,27=>75,19 or 29 or 30 or 31=>45,_=>0};
     }
-    // QWeather (和风天气) source: hourly data with precipitation probability; needs a free key from qweather.com.
+    // QWeather (和风天气) source: hourly data with precipitation probability; API key or JWT credentials from qweather.com.
     private async Task<WeatherSnapshot> DownloadQweather(Settings s,string key,CancellationToken token)
     {
         if(string.IsNullOrWhiteSpace(s.WeatherStationCode))throw new InvalidOperationException("Choose a city first.");
         (string host,string apiKeyValue)=QwCredential(s);
-        if(apiKeyValue.Length==0)throw new InvalidOperationException(Localization.Text("Enter your QWeather API key first."));
         if(host.Length==0)throw new InvalidOperationException(Localization.Text("QWeather API Host required. Paste the one your console assigns, for example abc.re.qweatherapi.com."));
+        if(s.WeatherAuthMode!="jwt" && apiKeyValue.Length==0)throw new InvalidOperationException(Localization.Text("Enter your QWeather API key first."));
         string location=s.WeatherStationCode,units=s.WeatherUnits;
         string unit=units=="Fahrenheit"?"i":"m";
-        using var now=await FetchQw("https://"+host+"/v7/weather/now?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);
+        using var now=await FetchQw(s,host,"/v7/weather/now?location="+Uri.EscapeDataString(location)+"&unit="+unit,token);
         var current=Section(now.RootElement,"now");
         string sunrise="",sunset="";
-        using var daily=await FetchQw("https://"+host+"/v7/weather/7d?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);
+        using var daily=await FetchQw(s,host,"/v7/weather/7d?location="+Uri.EscapeDataString(location)+"&unit="+unit,token);
         if(TrySection(daily.RootElement,"daily",out var days)&&days.ValueKind==JsonValueKind.Array&&days.GetArrayLength()>0)
         {
             sunrise=Text(days[0],"sunrise");sunset=Text(days[0],"sunset");
@@ -206,7 +214,7 @@ internal sealed class WeatherService : IDisposable
         }
         try
         {
-            using var hours=await FetchQw("https://"+host+"/v7/weather/24h?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);
+            using var hours=await FetchQw(s,host,"/v7/weather/24h?location="+Uri.EscapeDataString(location)+"&unit="+unit,token);
             if(TrySection(hours.RootElement,"hourly",out var hourly)&&hourly.ValueKind==JsonValueKind.Array)
             {
                 double best=0;
@@ -240,7 +248,7 @@ internal sealed class WeatherService : IDisposable
         string code=Text(root,"code");
         if(code.Length==0||code=="200")return;
         throw code is "401" or "402" or "403"
-            ?new InvalidOperationException(Localization.Format("QWeather API key or plan issue ({0}). Check the key, or use host|key when your console shows a dedicated API Host.",code))
+            ?new InvalidOperationException(Localization.Format("QWeather API key or plan issue ({0}). Check the credentials, and fill the API Host box with the host your console assigns.",code))
             :new InvalidOperationException(Localization.Format("QWeather error ({0}).",code));
     }
     private static bool TrySection(JsonElement root,string name,out JsonElement section)=>root.TryGetProperty(name,out section);
@@ -291,15 +299,29 @@ internal sealed class WeatherService : IDisposable
         return await JsonDocument.ParseAsync(stream,default,token);
     }
     // QWeather rejects bad credentials with a bare HTTP 403/401 (empty body); surface an actionable message instead of a generic failure.
-    private static async Task<JsonDocument> FetchQw(string url,CancellationToken token)
+    // API-key mode appends the key to the query; JWT mode signs an EdDSA token (kid + sub + iat/exp) and sends it as a bearer token.
+    private static string? jwtToken;
+    private static DateTimeOffset jwtExpires;
+    private static async Task<JsonDocument> FetchQw(Settings s,string host,string path,CancellationToken token)
     {
+        (string _,string key)=QwCredential(s);
+        string url="https://"+host+path+(path.Contains('?')?"&":"?")+"lang=zh";
         using var request=new HttpRequestMessage(HttpMethod.Get,url);
+        if(s.WeatherAuthMode=="jwt")
+        {
+            request.Headers.TryAddWithoutValidation("Authorization","Bearer "+EnsureJwt(s));
+        }
+        else
+        {
+            if(key.Length==0)throw new InvalidOperationException(Localization.Text("Enter your QWeather API key first."));
+            request.RequestUri=new Uri(url+"&key="+Uri.EscapeDataString(key));
+        }
         using var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,token);
         if(!response.IsSuccessStatusCode)
         {
             int status=(int)response.StatusCode;
             throw status is 401 or 403
-                ?new InvalidOperationException(Localization.Format("QWeather rejected the request ({0}). Check the key, or use host|key when your console shows a dedicated API Host.",status))
+                ?new InvalidOperationException(Localization.Format("QWeather rejected the request ({0}). Check the credentials, and fill the API Host box with the host your console assigns.",status))
                 :new InvalidOperationException(Localization.Format("QWeather error ({0}).",status));
         }
         await using var stream=await response.Content.ReadAsStreamAsync(token);
@@ -307,6 +329,35 @@ internal sealed class WeatherService : IDisposable
         CheckQw(doc.RootElement);
         return doc;
     }
+    private static bool JwtConfigured(Settings s)=>s.WeatherProjectId.Length>0&&s.WeatherCredentialId.Length>0&&s.WeatherPrivateKey.Length>0;
+    private static Ed25519 ImportPrivateKey(string pem)
+    {
+        if(!pem.Contains('-'))pem="-----BEGIN PRIVATE KEY-----\n"+pem+"\n-----END PRIVATE KEY-----";
+        return Ed25519.ImportFromPem(pem);
+    }
+    private static string EnsureJwt(Settings s)
+    {
+        if(jwtToken is { } cached && DateTimeOffset.UtcNow<jwtExpires)return cached;
+        if(!JwtConfigured(s))throw new InvalidOperationException(Localization.Text("Enter your QWeather project ID, credential ID and private key first."));
+        using Ed25519 signer=ImportPrivateKey(s.WeatherPrivateKey);
+        long iat=DateTimeOffset.UtcNow.AddSeconds(-10).ToUnixTimeSeconds();
+        long exp=DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds();
+        string header=Base64Url("{\"alg\":\"EdDSA\",\"kid\":\""+EscapeJson(s.WeatherCredentialId)+"\"}");
+        string payload=Base64Url("{\"sub\":\""+EscapeJson(s.WeatherProjectId)+"\",\"iat\":"+iat.ToString(CultureInfo.InvariantCulture)+",\"exp\":"+exp.ToString(CultureInfo.InvariantCulture)+"}");
+        string signing=header+"."+payload;
+        byte[] signature=signer.SignData(Encoding.UTF8.GetBytes(signing),HashAlgorithmName.SHA512);
+        jwtToken=signing+"."+Base64Url(signature);
+        jwtExpires=DateTimeOffset.UtcNow.AddMinutes(29);
+        return jwtToken;
+    }
+    internal static (string PrivateKey,string PublicKey) GenerateKeyPair()
+    {
+        using Ed25519 pair=Ed25519.Create();
+        return (pair.ExportPkcs8PrivateKeyPem(),pair.ExportSubjectPublicKeyInfoPem());
+    }
+    private static string Base64Url(string text)=>Base64Url(Encoding.UTF8.GetBytes(text));
+    private static string Base64Url(byte[] bytes)=>Convert.ToBase64String(bytes).TrimEnd('=').Replace('+','-').Replace('/','_');
+    private static string EscapeJson(string value)=>value.Replace("\\","\\\\").Replace("\"","\\\"");
     private static async Task<JsonDocument> Fetch(string url,CancellationToken token)
     {
         using var response=await client.GetAsync(url,token);response.EnsureSuccessStatusCode();return JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));

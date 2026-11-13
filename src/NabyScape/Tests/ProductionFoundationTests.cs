@@ -87,5 +87,16 @@ internal static class ProductionFoundationTests
             Assert(s.UiLanguage=="en" && s.AccessibilityTextScale==1 && s.AccessibilityHighContrast,"Invalid accessibility preferences were not normalized.");
             foreach(string language in new[]{"es","id","zh","en"}){s.UiLanguage=language;s.AccessibilityTextScale=9;s.Normalize();Assert(s.UiLanguage==language && s.AccessibilityTextScale==1.5,"Valid language or text scale bound changed.");}
         });
+        test("QWeather JWT EdDSA key pair generates, imports and verifies signatures",()=>
+        {
+            (string privateKey,string publicKey)=WeatherService.GenerateKeyPair();
+            Assert(privateKey.Contains("BEGIN PRIVATE KEY") && publicKey.Contains("BEGIN PUBLIC KEY"),"Generated key pair lacks PEM markers.");
+            using var signer=System.Security.Cryptography.Ed25519.ImportFromPem(privateKey);
+            using var verifier=System.Security.Cryptography.Ed25519.ImportFromPem(publicKey);
+            byte[] data=System.Text.Encoding.UTF8.GetBytes("eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiIxMjM0NSJ9");
+            byte[] signature=signer.SignData(data,System.Security.Cryptography.HashAlgorithmName.SHA512);
+            Assert(signature.Length==64,"Ed25519 signatures must be 64 bytes.");
+            Assert(verifier.VerifyData(data,signature),"The exported public key must verify the EdDSA signature.");
+        });
     }
 }

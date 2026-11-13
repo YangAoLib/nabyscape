@@ -23,6 +23,10 @@ public sealed partial class Settings
     public string WeatherStationCode {get;set;}="";
     public string WeatherApiKey {get;set;}="";
     public string WeatherApiHost {get;set;}="";
+    public string WeatherAuthMode {get;set;}="apikey";
+    public string WeatherProjectId {get;set;}="";
+    public string WeatherCredentialId {get;set;}="";
+    public string WeatherPrivateKey {get;set;}="";
     private void NormalizeFlexible()
     {
         FollowMonitorDuration=double.IsFinite(FollowMonitorDuration)?Math.Clamp(FollowMonitorDuration,180,700):360;
@@ -46,6 +50,10 @@ public sealed partial class Settings
         if(WeatherApiHost.StartsWith("http://",StringComparison.OrdinalIgnoreCase))WeatherApiHost=WeatherApiHost[7..];
         WeatherApiHost=WeatherApiHost.TrimEnd('/');
         if(WeatherApiHost.Length>120)WeatherApiHost=WeatherApiHost[..120];
+        if(WeatherAuthMode is not ("apikey" or "jwt"))WeatherAuthMode="apikey";
+        WeatherProjectId=(WeatherProjectId??"").Trim();if(WeatherProjectId.Length>64)WeatherProjectId=WeatherProjectId[..64];
+        WeatherCredentialId=(WeatherCredentialId??"").Trim();if(WeatherCredentialId.Length>64)WeatherCredentialId=WeatherCredentialId[..64];
+        WeatherPrivateKey=(WeatherPrivateKey??"").Trim();if(WeatherPrivateKey.Length>2400)WeatherPrivateKey=WeatherPrivateKey[..2400];
     }
 }
 internal readonly record struct AmbientLook(string Direction,double Height,double Balance,double Softness)

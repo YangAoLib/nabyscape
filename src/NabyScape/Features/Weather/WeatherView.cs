@@ -39,23 +39,56 @@ internal sealed class WeatherView : UserControl
         search.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){_=Search();e.Handled=true;}};
         var options=new ComboBox{ItemsSource=new[]{"Celsius","Fahrenheit"},SelectedItem=app.Settings.WeatherUnits,MinHeight=30,Margin=new(0,8,0,8)};UI.Named(options,"Weather temperature units");options.SelectionChanged+=(_,_)=>{if(options.SelectedItem is string unit && app.Settings.WeatherUnits!=unit){app.Settings.WeatherUnits=unit;app.ChangeSettings();}};location.Children.Add(options);
         var sources=new ComboBox{ItemsSource=new[]{Localization.Text("NMC · China weather"),Localization.Text("QWeather · China hourly"),Localization.Text("Open-Meteo · International")},SelectedIndex=app.Settings.WeatherSource switch{"nmc"=>0,"qweather"=>1,_=>2},MinHeight=30,Margin=new(0,0,0,2)};UI.Named(sources,"Weather source");sources.SelectionChanged+=(_,_)=>{string code=sources.SelectedIndex switch{0=>"nmc",1=>"qweather",_=>"open-meteo"};if(app.Settings.WeatherSource!=code){app.Settings.WeatherSource=code;app.ChangeSettings();}};location.Children.Add(sources);
+        var authMode=new ComboBox{ItemsSource=new[]{Localization.Text("API key"),Localization.Text("JSON Web Token")},SelectedIndex=app.Settings.WeatherAuthMode=="jwt"?1:0,MinHeight=30,Margin=new(0,2,0,2)};UI.Named(authMode,"QWeather authentication");
         var keyInput=UI.Input("QWeather API key",app.Settings.WeatherApiKey,"");keyInput.Margin=new(0,2,0,2);UI.Named(keyInput,"QWeather API key");
         void CommitKey(){string value=keyInput.Text.Trim();if(app.Settings.WeatherApiKey!=value){app.Settings.WeatherApiKey=value;app.ChangeSettings();}}
         keyInput.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitKey();e.Handled=true;}};
         keyInput.LostFocus+=(_,_)=>CommitKey();
+        var projectInput=UI.Input("QWeather project ID",app.Settings.WeatherProjectId,"");projectInput.Margin=new(0,2,0,2);UI.Named(projectInput,"QWeather project ID");
+        var credentialInput=UI.Input("QWeather credential ID",app.Settings.WeatherCredentialId,"");credentialInput.Margin=new(0,2,0,2);UI.Named(credentialInput,"QWeather credential ID");
+        void CommitProject(){string value=projectInput.Text.Trim();if(app.Settings.WeatherProjectId!=value){app.Settings.WeatherProjectId=value;app.ChangeSettings();}}
+        void CommitCredential(){string value=credentialInput.Text.Trim();if(app.Settings.WeatherCredentialId!=value){app.Settings.WeatherCredentialId=value;app.ChangeSettings();}}
+        foreach(var box in new[]{projectInput,credentialInput})
+        {
+            box.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitProject();CommitCredential();e.Handled=true;}};
+            box.LostFocus+=(_,_)=>{CommitProject();CommitCredential();};
+        }
+        var privateKeyBox=new TextBox{AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,FontSize=10,Height=70,Text=app.Settings.WeatherPrivateKey,Margin=new(0,2,0,2),VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+        UI.Named(privateKeyBox,"QWeather private key");
+        void CommitPrivate(){string value=privateKeyBox.Text.Trim();if(app.Settings.WeatherPrivateKey!=value){app.Settings.WeatherPrivateKey=value;app.ChangeSettings();}}
+        privateKeyBox.LostFocus+=(_,_)=>CommitPrivate();
+        var jwtButtons=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(0,2,0,4)};
+        var generate=UI.CaptionButton("Generate key pair",()=>{
+            (string privateKey,string publicKey)=WeatherService.GenerateKeyPair();
+            privateKeyBox.Text=privateKey;CommitPrivate();
+            try{System.Windows.Clipboard.SetText(publicKey);}catch(Exception){}
+            status.Text=Localization.Text("Public key copied. Upload it to your QWeather console credential.");
+        });
+        jwtButtons.Children.Add(generate);
         var hostInput=UI.Input("QWeather API host",app.Settings.WeatherApiHost,"");hostInput.Margin=new(0,2,0,8);UI.Named(hostInput,"QWeather API host");
         void CommitHost(){string value=hostInput.Text.Trim();if(app.Settings.WeatherApiHost!=value){app.Settings.WeatherApiHost=value;app.ChangeSettings();}}
         hostInput.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitHost();e.Handled=true;}};
         hostInput.LostFocus+=(_,_)=>CommitHost();
-        keyInput.Visibility=app.Settings.WeatherSource=="qweather"?Visibility.Visible:Visibility.Collapsed;
-        hostInput.Visibility=keyInput.Visibility;
-        sources.SelectionChanged+=(_,_)=>{Visibility visible=sources.SelectedIndex==1?Visibility.Visible:Visibility.Collapsed;keyInput.Visibility=visible;hostInput.Visibility=visible;};
+        authMode.SelectionChanged+=(_,_)=>{string mode=authMode.SelectedIndex==1?"jwt":"apikey";if(app.Settings.WeatherAuthMode!=mode){app.Settings.WeatherAuthMode=mode;app.ChangeSettings();}RefreshAuthVisibility();};
+        sources.SelectionChanged+=(_,_)=>RefreshAuthVisibility();
+        location.Children.Add(authMode);
         location.Children.Add(keyInput);
+        location.Children.Add(projectInput);
+        location.Children.Add(credentialInput);
+        location.Children.Add(privateKeyBox);
+        location.Children.Add(jwtButtons);
         location.Children.Add(hostInput);
         var guide=UI.CaptionButton("How to get a QWeather key?",ShowQWeatherGuide);guide.HorizontalAlignment=HorizontalAlignment.Left;guide.Margin=new(0,0,0,6);
-        guide.Visibility=keyInput.Visibility;
-        sources.SelectionChanged+=(_,_)=>guide.Visibility=sources.SelectedIndex==1?Visibility.Visible:Visibility.Collapsed;
         location.Children.Add(guide);
+        void RefreshAuthVisibility()
+        {
+            bool qw=app.Settings.WeatherSource=="qweather";
+            bool jwt=app.Settings.WeatherAuthMode=="jwt";
+            keyInput.Visibility=qw&&!jwt?Visibility.Visible:Visibility.Collapsed;
+            projectInput.Visibility=credentialInput.Visibility=privateKeyBox.Visibility=jwtButtons.Visibility=qw&&jwt?Visibility.Visible:Visibility.Collapsed;
+            hostInput.Visibility=authMode.Visibility=guide.Visibility=qw?Visibility.Visible:Visibility.Collapsed;
+        }
+        RefreshAuthVisibility();
         var sourceHint=UI.Text(Localization.Text("NMC works in mainland China without a key. QWeather needs a free key from qweather.com. Open-Meteo suits other regions."),11,UI.Muted);sourceHint.Margin=new(0,2,0,8);location.Children.Add(sourceHint);
         var list=UI.Scroll(results);list.Tag="panel-content-scroll";list.MaxHeight=150;location.Children.Add(list);location.Margin=new(0,0,0,8);page.Children.Add(location);page.Children.Add(content);
         var footer=new DockPanel{Margin=new(0,6,0,0)};retry=Icons.Button("reset","Refresh weather",()=>_=Reload(true),false,26);retry.Margin=new(0);retry.Background=Brushes.Transparent;DockPanel.SetDock(retry,Dock.Right);footer.Children.Add(retry);footer.Children.Add(status);page.Children.Add(footer);
@@ -89,6 +122,8 @@ internal sealed class WeatherView : UserControl
         }
         var note=UI.Text(Localization.Text("The free plan covers current conditions, 24 hourly and 7 daily forecasts. Your key stays in local settings."),11,UI.Muted);
         note.TextWrapping=TextWrapping.Wrap;note.Margin=new(0,12,0,0);panel.Children.Add(note);
+        var jwtNote=UI.Text(Localization.Text("JSON Web Token mode: pick Ed25519 when creating the JWT credential in the console, generate the key pair here, upload the copied public key, then fill in the project ID and credential ID."),11,UI.Muted);
+        jwtNote.TextWrapping=TextWrapping.Wrap;jwtNote.Margin=new(0,6,0,0);panel.Children.Add(jwtNote);
         var actions=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new(0,16,0,0)};
         var docs=UI.Button("Authentication docs",()=>ShortcutService.Open(new(){Target="https://developers.qweather.com/docs/configuration/authentication/"}));docs.Margin=new(0,0,8,0);
         var console=UI.Button("Open QWeather console",()=>ShortcutService.Open(new(){Target="https://console.qweather.com/"}));console.Margin=new(0,0,8,0);
@@ -140,8 +175,14 @@ internal sealed class WeatherView : UserControl
         if(lifetime==null || search.Text.Trim().Length<2){status.Text="Enter at least two letters of your city.";return;}
         if(app.Settings.WeatherSource=="qweather")
         {
-            if(app.Settings.WeatherApiKey.Length==0){status.Text=Localization.Text("Enter your QWeather API key first.");return;}
-            if(app.Settings.WeatherApiHost.Length==0 && !app.Settings.WeatherApiKey.Contains('|')){status.Text=Localization.Text("Enter your QWeather API Host from the console first.");return;}
+            if(app.Settings.WeatherAuthMode=="jwt")
+            {
+                if(app.Settings.WeatherProjectId.Length==0||app.Settings.WeatherCredentialId.Length==0){status.Text=Localization.Text("Enter your QWeather project ID, credential ID and private key first.");return;}
+                if(app.Settings.WeatherPrivateKey.Length==0){status.Text=Localization.Text("Generate a QWeather key pair and keep the private key first.");return;}
+                if(!WeatherService.JwtReady(app.Settings)){status.Text=Localization.Text("QWeather private key is invalid.");return;}
+            }
+            else if(app.Settings.WeatherApiKey.Length==0){status.Text=Localization.Text("Enter your QWeather API key first.");return;}
+            if(app.Settings.WeatherApiHost.Length==0 && (app.Settings.WeatherAuthMode=="jwt" || !app.Settings.WeatherApiKey.Contains('|'))){status.Text=Localization.Text("Enter your QWeather API Host from the console first.");return;}
         }
         searchRequest?.Cancel();searchRequest?.Dispose();searchRequest=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);var request=searchRequest;find.IsEnabled=false;results.Children.Clear();status.Text="Looking for cities…";
         try
@@ -160,7 +201,7 @@ internal sealed class WeatherView : UserControl
     private async Task Reload(bool force=false)
     {
         if(lifetime==null)return;string key=WeatherService.Key(app.Settings);int version=++revision;shownKey=key;city.Text=app.Settings.WeatherCity.Length>0?app.Settings.WeatherCity:"Your daily outlook";
-        if(key.Length==0){shown=null;busy=false;Render(null);status.Text=app.Settings.WeatherSource=="qweather"&&app.Settings.WeatherCity.Length>0?Localization.Text("Fill in your QWeather API key and API Host above."):"Choose a city to see today's weather.";retry.IsEnabled=false;return;}
+        if(key.Length==0){shown=null;busy=false;Render(null);status.Text=app.Settings.WeatherSource=="qweather"&&app.Settings.WeatherCity.Length>0?Localization.Text("Fill in your QWeather credentials above."):"Choose a city to see today's weather.";retry.IsEnabled=false;return;}
         if(shown?.Key!=key){shown=app.Weather.Cached?.Key==key?app.Weather.Cached:null;Render(shown);}
         busy=true;retry.IsEnabled=false;status.Text="Updating weather…";
         try
