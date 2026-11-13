@@ -72,8 +72,8 @@ description: 上游（BillyNabil/nabyscape）发布更新后，同步代码到�
    - `Fresh profiles use the complete bundled preferences…` → `default-preferences.json` 缺新 Settings 字段
    - `CS8510 pattern is unreachable` → switch 重复分支
    - `Logic tests failed` → 下载 run 的测试报告或看 log 中 `FAIL` 行
-6. 正式 tag 发版（已配置好）：fork 用「上游 tag + `-cn`」发布，例如上游 `v2.26.1` → 本 fork `v2.26.1-cn`：
-   - 前置：`release.yml` 条件已支持 fork 的 `-cn` tag（上游原仓库的普通 tag 流程不受影响）；`tools/Build-Release.ps1` 已接受 `vX.Y.Z-cn` 并按去掉 `-cn` 的版本号校验 `NabyScape.csproj` 的 `<Version>`
+6. 正式 tag 发版（已配置好）：fork 用「上游 tag + `-cn`」发布，同版本重复构建时追加 `.N` 序号：上游 `v2.26.1` → 本 fork `v2.26.1-cn`；修复性重发用 `v2.26.1-cn.2`（依次递增）：
+   - 前置：`release.yml` 条件已支持 fork 的 `-cn` / `-cn.N` tag（上游原仓库的普通 tag 流程不受影响）；`tools/Build-Release.ps1` 已接受 `vX.Y.Z-cn` 与 `vX.Y.Z-cn.N`，并按去掉后缀的版本号校验 `NabyScape.csproj` 的 `<Version>`
    - 同步上游后确认 `<Version>` 与上游最新 tag 一致（上游 bump 版本时跟着改）
    - 发布步骤：
      ```powershell

@@ -1,11 +1,11 @@
 param([Parameter(Mandatory)][string]$Tag,[string]$Dotnet='dotnet',[string]$OutputDirectory,[Alias('CompileOnly')][switch]$SkipTests)
 $ErrorActionPreference='Stop'
-# Fork releases append -cn to the upstream tag (for example v2.26.1-cn); plain upstream tags stay valid.
-if ($Tag -notmatch '^v\d+\.\d+\.\d+(-cn)?$') { throw 'Expected tag vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-cn.' }
+# Fork releases append -cn (optionally -cn.N build number) to the upstream tag (for example v2.26.1-cn, v2.26.1-cn.2); plain upstream tags stay valid.
+if ($Tag -notmatch '^v\d+\.\d+\.\d+(-cn(\.\d+)?)?$') { throw 'Expected tag vMAJOR.MINOR.PATCH, vMAJOR.MINOR.PATCH-cn or vMAJOR.MINOR.PATCH-cn.N.' }
 $repo=Split-Path $PSScriptRoot -Parent
 if ([string]::IsNullOrEmpty($OutputDirectory)) { $OutputDirectory = Join-Path $repo 'release-output' }
 [xml]$project=Get-Content -LiteralPath (Join-Path $repo 'src\NabyScape\NabyScape.csproj')
-$version=$Tag.Substring(1) -replace '-cn$',''
+$version=$Tag.Substring(1) -replace '-cn(\.\d+)?$',''
 if ($version -ne $project.Project.PropertyGroup.Version) { throw 'Tag must match project version.' }
 $output=[IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $output) { throw 'Release output must be a new empty path; never reuse prior assets.' }
