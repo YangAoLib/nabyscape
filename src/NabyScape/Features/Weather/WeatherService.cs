@@ -352,8 +352,9 @@ internal sealed class WeatherService : IDisposable
     internal static Ed25519PublicKeyParameters ImportPublicKey(string pem)
     {
         byte[] der=PemDer(pem);
-        if(der.Length==44 && der[0]==0x30 && der[1]==0x2A && der[12]==0x03 && der[13]==0x21)
-            return new Ed25519PublicKeyParameters(der,14);
+        // SPKI header is 12 bytes: 30 2a | 30 05 06 03 2b 65 70 | 03 21 00 — BIT STRING data starts at 12.
+        if(der.Length==44 && der[0]==0x30 && der[1]==0x2A && der[9]==0x03 && der[10]==0x21)
+            return new Ed25519PublicKeyParameters(der,12);
         throw new InvalidOperationException(Localization.Text("QWeather private key is invalid.")+" (pubDER len="+der.Length+" head="+Head(der)+")");
     }
     private static string Head(byte[] data)
@@ -408,7 +409,7 @@ internal sealed class WeatherService : IDisposable
     {
         byte[] encoded=key.GetEncoded();
         if(encoded.Length==32)return encoded;
-        if(encoded.Length==44 && encoded[0]==0x30 && encoded[12]==0x03)return encoded.Skip(14).Take(32).ToArray();
+        if(encoded.Length==44 && encoded[0]==0x30 && encoded[9]==0x03 && encoded[10]==0x21)return encoded.Skip(12).Take(32).ToArray();
         if(encoded.Length==48 && encoded[0]==0x30 && encoded[14]==0x04)return encoded.Skip(16).Take(32).ToArray();
         throw new InvalidOperationException(Localization.Text("QWeather private key is invalid.")+" (pubGetEncoded len="+encoded.Length+" head="+Head(encoded)+")");
     }
