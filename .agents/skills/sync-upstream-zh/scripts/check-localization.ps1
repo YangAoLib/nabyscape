@@ -55,6 +55,27 @@ foreach ($c in $checks) {
     Report ("zh 注册: " + (Split-Path -Leaf $c.File)) ($text -match $c.Pattern) "未找到模式: $($c.Pattern)"
 }
 
+# 4) 缺失键审计：走本地化辅助调用但目录无键 → 回退英文（符号/数据类可忽略）
+$symbols = '^[—↑↓⋯●‹\s0-9:°·#]+$'
+$catalogKeys = @{}
+foreach ($e in $entries) { $catalogKeys[$e.Groups[1].Value] = $true }
+$missingByFile = @{}
+$missTotal = 0
+$srcFiles = Get-ChildItem 'src/NabyScape' -Recurse -Filter *.cs | Where-Object { $_.FullName -notmatch '\\Tests\\|\\Diagnostics\\|LocalizationCatalog' }
+foreach ($f in $srcFiles) {
+    $text = Get-Content $f.FullName -Raw
+    $rel = $f.FullName.Substring((Get-Location).Path.Length + 1)
+    foreach ($m in [regex]::Matches($text, '(?:UI\.(?:Text|Button|Caption|CaptionButton|Heading|Input|Named)|Localization\.(?:Text|Format))\(\s*"((?:[^"\\]|\\.)*)"')) {
+        $k = $m.Groups[1].Value
+        if ($k.Length -gt 0 -and -not $catalogKeys.ContainsKey($k) -and $k -notmatch $symbols) {
+            $missTotal++
+            if (-not $missingByFile.ContainsKey($rel)) { $missingByFile[$rel] = New-Object System.Collections.Generic.List[string] }
+            $missingByFile[$rel].Add($k)
+        }
+    }
+}
+Report "辅助调用层中文全覆盖（符号/数据类除外）" ($missTotal -eq 0) ("缺失 $missTotal 条: " + (($missingByFile.GetEnumerator() | Sort-Object { $_.Value.Count } -Descending | Select-Object -First 8 | ForEach-Object { $_.Key + "(" + $_.Value.Count + ")" }) -join ', '))
+
 Write-Output ''
 if ($fail -eq 0) { Write-Output '全部校验通过 ✔'; exit 0 }
 Write-Output "$fail 项校验失败 ✘"; exit 1
