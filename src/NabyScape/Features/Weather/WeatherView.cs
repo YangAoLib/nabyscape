@@ -22,7 +22,7 @@ internal sealed class WeatherView : UserControl
     private readonly StackPanel page=new(),content=new(),location=new(),results=new();
     private readonly TextBlock city=UI.Text("",11,UI.Muted),status=UI.Text("",10,UI.Muted);
     private readonly TextBox search=UI.Input("Weather city search", "", "Search for your city");
-    private readonly Button find,retry;
+    private readonly Button find,retry,credit;
     private CancellationTokenSource? lifetime,searchRequest;
     private string shownKey="";
     private bool busy;
@@ -38,9 +38,11 @@ internal sealed class WeatherView : UserControl
         var searchRow=new DockPanel();find=UI.Button("Search",()=>_=Search());find.Padding=new(12,6,12,6);find.Margin=new(8,0,0,0);DockPanel.SetDock(find,Dock.Right);searchRow.Children.Add(find);search.Margin=new(0);search.MaxLength=120;var searchHost=new Grid();searchHost.Children.Add(search);var searchHint=UI.Text("Search city or town…",12,UI.Muted);searchHint.Margin=new(11,0,0,0);searchHint.IsHitTestVisible=false;searchHost.Children.Add(searchHint);search.TextChanged+=(_,_)=>searchHint.Visibility=search.Text.Length==0?Visibility.Visible:Visibility.Collapsed;searchRow.Children.Add(searchHost);location.Children.Add(searchRow);
         search.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){_=Search();e.Handled=true;}};
         var options=new ComboBox{ItemsSource=new[]{"Celsius","Fahrenheit"},SelectedItem=app.Settings.WeatherUnits,MinHeight=30,Margin=new(0,8,0,8)};UI.Named(options,"Weather temperature units");options.SelectionChanged+=(_,_)=>{if(options.SelectedItem is string unit && app.Settings.WeatherUnits!=unit){app.Settings.WeatherUnits=unit;app.ChangeSettings();}};location.Children.Add(options);
+        var sources=new ComboBox{ItemsSource=new[]{Localization.Text("NMC · China weather"),Localization.Text("Open-Meteo · International")},SelectedIndex=app.Settings.WeatherSource=="nmc"?0:1,MinHeight=30,Margin=new(0,0,0,2)};UI.Named(sources,"Weather source");sources.SelectionChanged+=(_,_)=>{string code=sources.SelectedIndex==0?"nmc":"open-meteo";if(app.Settings.WeatherSource!=code){app.Settings.WeatherSource=code;app.ChangeSettings();}};location.Children.Add(sources);
+        var sourceHint=UI.Text(Localization.Text("NMC works in mainland China without a key. Open-Meteo suits other regions."),11,UI.Muted);sourceHint.Margin=new(0,2,0,8);location.Children.Add(sourceHint);
         var list=UI.Scroll(results);list.Tag="panel-content-scroll";list.MaxHeight=150;location.Children.Add(list);location.Margin=new(0,0,0,8);page.Children.Add(location);page.Children.Add(content);
         var footer=new DockPanel{Margin=new(0,6,0,0)};retry=Icons.Button("reset","Refresh weather",()=>_=Reload(true),false,26);retry.Margin=new(0);retry.Background=Brushes.Transparent;DockPanel.SetDock(retry,Dock.Right);footer.Children.Add(retry);footer.Children.Add(status);page.Children.Add(footer);
-        var credit=UI.Button("Open-Meteo",()=>ShortcutService.Open(new(){Target="https://open-meteo.com/"}));credit.FontSize=9;credit.Foreground=UI.Muted;credit.Background=Brushes.Transparent;credit.BorderThickness=new(0);credit.Padding=new(4,0,4,0);credit.MinHeight=20;credit.Margin=new(0);DockPanel.SetDock(credit,Dock.Right);footer.Children.Insert(1,credit);
+        credit=UI.Button("Open-Meteo",()=>ShortcutService.Open(new(){Target=app.Settings.WeatherSource=="nmc"?"https://www.nmc.cn/":"https://open-meteo.com/"}));credit.FontSize=9;credit.Foreground=UI.Muted;credit.Background=Brushes.Transparent;credit.BorderThickness=new(0);credit.Padding=new(4,0,4,0);credit.MinHeight=20;credit.Margin=new(0);DockPanel.SetDock(credit,Dock.Right);footer.Children.Insert(1,credit);UpdateCredit();
         location.IsVisibleChanged+=(_,_)=>{if(fit!=null)fit.MaxHeight=location.Visibility==Visibility.Visible?double.PositiveInfinity:fitBudget;};
         page.SizeChanged+=(_,_)=>ContentSizeChanged?.Invoke();
         Content=page;IsVisibleChanged+=(_,_)=>
@@ -63,7 +65,13 @@ internal sealed class WeatherView : UserControl
     private void Preferences()
     {
         foreach(var art in Artworks(page)){art.ReduceMotion=app.Settings.ReduceMotion;art.RefreshMotion();}
+        UpdateCredit();
         if(IsVisible && shownKey!=WeatherService.Key(app.Settings))_=Reload();
+    }
+    private void UpdateCredit()
+    {
+        string label=app.Settings.WeatherSource=="nmc"?"NMC":"Open-Meteo";
+        if(credit.Content as string!=label){credit.Content=label;UI.Named(credit,label);}
     }
     private static System.Collections.Generic.IEnumerable<WeatherArtwork> Artworks(DependencyObject node)
     {
@@ -81,12 +89,12 @@ internal sealed class WeatherView : UserControl
         searchRequest?.Cancel();searchRequest?.Dispose();searchRequest=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);var request=searchRequest;find.IsEnabled=false;results.Children.Clear();status.Text="Looking for cities…";
         try
         {
-            var places=await app.Weather.Search(search.Text,request.Token);if(!IsLoaded || request!=searchRequest)return;
+            var places=await app.Weather.Search(app.Settings,search.Text,request.Token);if(!IsLoaded || request!=searchRequest)return;
             foreach(var place in places)
             {
-                var button=UI.Button(place.Name,()=>{app.Settings.WeatherCity=place.Name;app.Settings.WeatherLatitude=place.Latitude;app.Settings.WeatherLongitude=place.Longitude;location.Visibility=Visibility.Collapsed;app.ChangeSettings();});button.FontSize=11;button.Margin=new(0,2,0,2);button.HorizontalContentAlignment=HorizontalAlignment.Left;button.Content=new TextBlock{Text=place.Name,TextTrimming=TextTrimming.CharacterEllipsis,Foreground=Brushes.White};results.Children.Add(button);
+                var button=UI.Button(place.Name,()=>{app.Settings.WeatherCity=place.Name;app.Settings.WeatherLatitude=place.Latitude;app.Settings.WeatherLongitude=place.Longitude;app.Settings.WeatherStationCode=place.StationCode;location.Visibility=Visibility.Collapsed;app.ChangeSettings();});button.FontSize=11;button.Margin=new(0,2,0,2);button.HorizontalContentAlignment=HorizontalAlignment.Left;button.Content=new TextBlock{Text=place.Name,TextTrimming=TextTrimming.CharacterEllipsis,Foreground=Brushes.White};results.Children.Add(button);
             }
-            status.Text=places.Length==0?"No cities found. Try a nearby city or include the country.":"Choose your city above.";
+            status.Text=places.Length==0?(app.Settings.WeatherSource=="nmc"?"No stations found. Try a nearby city or its province.":"No cities found. Try a nearby city or include the country."):"Choose your city above.";
         }
         catch(OperationCanceledException){}
         catch(Exception){if(IsLoaded)status.Text="City search is unavailable. Please try again.";}
@@ -116,7 +124,7 @@ internal sealed class WeatherView : UserControl
         var hero=new Grid();hero.ColumnDefinitions.Add(new());hero.ColumnDefinitions.Add(new(){Width=new GridLength(108)});
         var readings=new StackPanel();var today=UI.Text(day?"TODAY · DAYLIGHT":"TONIGHT",9,UI.Brush("#B6C7D9"));readings.Children.Add(today);
         var temperature=UI.Text($"{data.Temperature:0}°",38);temperature.FontWeight=FontWeights.Light;temperature.TextWrapping=TextWrapping.NoWrap;readings.Children.Add(temperature);
-        readings.Children.Add(UI.Text(WeatherService.Condition(code),12));var range=UI.Text($"Feels {data.FeelsLike:0}°  ·  H {data.High:0}°  L {data.Low:0}°",10,UI.Brush("#B7CADC"));range.Margin=new(0,4,0,0);readings.Children.Add(range);hero.Children.Add(readings);
+        readings.Children.Add(UI.Text(WeatherService.ConditionText(data),12));var range=UI.Text($"Feels {data.FeelsLike:0}°  ·  H {data.High:0}°  L {data.Low:0}°",10,UI.Brush("#B7CADC"));range.Margin=new(0,4,0,0);readings.Children.Add(range);hero.Children.Add(readings);
         var art=new WeatherArtwork{Code=code,Day=day,Width=92,Height=76,ReduceMotion=app.Settings.ReduceMotion};Grid.SetColumn(art,1);hero.Children.Add(art);panel.Children.Add(hero);
         var metrics=new System.Windows.Controls.Primitives.UniformGrid{Columns=3,Rows=1,Margin=new(0,7,0,0)};
         void Metric(string label,string value){var p=new StackPanel{Orientation=Orientation.Horizontal};p.Children.Add(UI.Text(label+" ",9,UI.Brush("#97ADC2")));p.Children.Add(UI.Text(value,10,UI.Brush("#DFE8EF")));metrics.Children.Add(p);}

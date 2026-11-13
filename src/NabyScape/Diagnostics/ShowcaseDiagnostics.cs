@@ -62,7 +62,7 @@ internal static class ShowcaseDiagnostics
             await Scene("closed","Your music. A little closer.",2.5,()=>island.Collapse());
             await Scene("hover-music","Hover for the essentials.",3.5,()=>{island.SelectPeek("media");island.PreviewActivity();});
             await Scene("media","Click for the full picture.",3.5,()=>{island.Reveal(false);island.SelectPage("media",false);});
-            app.Settings.WeatherCity="Demo City";app.Settings.WeatherLatitude=0;app.Settings.WeatherLongitude=0;
+            app.Settings.WeatherSource="open-meteo";app.Settings.WeatherCity="Demo City";app.Settings.WeatherLatitude=0;app.Settings.WeatherLongitude=0;
             var weather=new WeatherSnapshot{Key=WeatherService.Key(app.Settings),Updated=DateTimeOffset.UtcNow,Temperature=26,FeelsLike=27,High=28,Low=21,Humidity=65,Wind=8,RainChance=10,Code=1,Day=true,Sunrise="2026-10-21T05:40",Sunset="2026-10-21T18:10",Hours=Enumerable.Range(0,6).Select(i=>new WeatherHour{Time=(14+i).ToString()+":00",Temperature=26-i*.7,Code=i<3?1:2,Day=i<4,RainChance=i*5}).ToList()};
             typeof(WeatherService).GetProperty("Cached",flags|BindingFlags.Public)!.SetValue(app.Weather,weather);
             await Scene("weather","Your forecast. One quiet card.",3,()=>island.ShowTools("weather",false));

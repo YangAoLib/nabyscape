@@ -50,7 +50,7 @@ internal static class ProductionUiDiagnostics
         finally{s.UiLanguage=language;s.AccessibilityTextScale=textScale;s.AccessibilityHighContrast=contrast;Localization.Configure(s);UI.ApplyControlTheme(s);}
 
         s.ReduceMotion=false;s.PanelScale=1;s.PanelPadding=26;s.PanelMaxHeight=417;s.HideFullscreen=s.HideMaximized=s.AlwaysTucked=false;s.SmartActivities=false;
-        s.WeatherCity="Synthetic forecast";s.WeatherLatitude=0;s.WeatherLongitude=0;s.Widgets.Single(w=>w.Id=="weather").Enabled=true;
+        s.WeatherSource="open-meteo";s.WeatherCity="Synthetic forecast";s.WeatherLatitude=0;s.WeatherLongitude=0;s.Widgets.Single(w=>w.Id=="weather").Enabled=true;
         foreach(var state in new[]{(Name:"day",Day:true,Code:0),(Name:"night",Day:false,Code:0),(Name:"rain",Day:true,Code:63)})
         {
             var weather=new WeatherSnapshot{Key=WeatherService.Key(s),Updated=DateTimeOffset.UtcNow,Temperature=26,FeelsLike=28,High=30,Low=22,Humidity=65,Wind=8,RainChance=state.Code==63?80:10,Day=state.Day,Code=state.Code,Hours=Enumerable.Range(0,6).Select(i=>new WeatherHour{Time=$"{12+i}:00",Temperature=25+i%3,Day=state.Day,Code=state.Code}).ToList()};
