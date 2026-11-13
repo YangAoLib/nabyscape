@@ -89,18 +89,26 @@ internal static class ProductionFoundationTests
         });
         test("QWeather JWT EdDSA key pair generates, imports and verifies signatures",()=>
         {
-            (string privateKey,string publicKey)=WeatherService.GenerateKeyPair();
-            Assert(privateKey.Contains("BEGIN PRIVATE KEY") && publicKey.Contains("BEGIN PUBLIC KEY"),"Generated key pair lacks PEM markers.");
-            var signer=Org.BouncyCastle.Security.SignerUtilities.GetSigner("Ed25519");
-            signer.Init(true,WeatherService.ImportPrivateKey(privateKey));
-            byte[] data=System.Text.Encoding.UTF8.GetBytes("eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiIxMjM0NSJ9");
-            signer.BlockUpdate(data,0,data.Length);
-            byte[] signature=signer.GenerateSignature();
-            Assert(signature.Length==64,"Ed25519 signatures must be 64 bytes.");
-            var verifier=Org.BouncyCastle.Security.SignerUtilities.GetSigner("Ed25519");
-            verifier.Init(false,WeatherService.ImportPublicKey(publicKey));
-            verifier.BlockUpdate(data,0,data.Length);
-            Assert(verifier.VerifySignature(signature),"The exported public key must verify the EdDSA signature.");
+            string privateKey="",publicKey="";
+            try
+            {
+                (privateKey,publicKey)=WeatherService.GenerateKeyPair();
+                Assert(privateKey.Contains("BEGIN PRIVATE KEY") && publicKey.Contains("BEGIN PUBLIC KEY"),"PEM markers missing. privHead="+privateKey.Substring(0,Math.Min(24,privateKey.Length))+" pubHead="+publicKey.Substring(0,Math.Min(24,publicKey.Length)));
+                var signer=Org.BouncyCastle.Security.SignerUtilities.GetSigner("Ed25519");
+                signer.Init(true,WeatherService.ImportPrivateKey(privateKey));
+                byte[] data=System.Text.Encoding.UTF8.GetBytes("eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiIxMjM0NSJ9");
+                signer.BlockUpdate(data,0,data.Length);
+                byte[] signature=signer.GenerateSignature();
+                Assert(signature.Length==64,"Ed25519 signatures must be 64 bytes.");
+                var verifier=Org.BouncyCastle.Security.SignerUtilities.GetSigner("Ed25519");
+                verifier.Init(false,WeatherService.ImportPublicKey(publicKey));
+                verifier.BlockUpdate(data,0,data.Length);
+                Assert(verifier.VerifySignature(signature),"The exported public key must verify the EdDSA signature.");
+            }
+            catch(Exception ex)
+            {
+                throw new Exception("EdDSA round-trip diagnostics: "+ex.GetType().Name+": "+ex.Message+" | privLen="+(privateKey?.Length ?? -1)+" pubLen="+(publicKey?.Length ?? -1)+" privHead="+(string.IsNullOrEmpty(privateKey)||privateKey.Length<16?"":privateKey.Substring(0,16).Replace("\n","/")),ex);
+            }
         });
     }
 }
