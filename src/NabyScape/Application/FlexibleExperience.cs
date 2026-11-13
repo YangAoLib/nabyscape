@@ -21,6 +21,7 @@ public sealed partial class Settings
     public string WeatherUnits {get;set;}="Celsius";
     public string WeatherSource {get;set;}="nmc";
     public string WeatherStationCode {get;set;}="";
+    public string WeatherApiKey {get;set;}="";
     private void NormalizeFlexible()
     {
         FollowMonitorDuration=double.IsFinite(FollowMonitorDuration)?Math.Clamp(FollowMonitorDuration,180,700):360;
@@ -36,8 +37,9 @@ public sealed partial class Settings
         WeatherCity=(WeatherCity??"").Trim();if(WeatherCity.Length>120)WeatherCity=WeatherCity[..120];
         if(WeatherLatitude is not {} lat || WeatherLongitude is not {} lon || !double.IsFinite(lat) || !double.IsFinite(lon) || Math.Abs(lat)>90 || Math.Abs(lon)>180){WeatherLatitude=WeatherLongitude=null;}
         if(WeatherUnits is not ("Celsius" or "Fahrenheit"))WeatherUnits="Celsius";
-        if(WeatherSource is not ("nmc" or "open-meteo"))WeatherSource="nmc";
+        if(WeatherSource is not ("nmc" or "qweather" or "open-meteo"))WeatherSource="nmc";
         WeatherStationCode=(WeatherStationCode??"").Trim();if(WeatherStationCode.Length>32)WeatherStationCode=WeatherStationCode[..32];
+        WeatherApiKey=(WeatherApiKey??"").Trim();if(WeatherApiKey.Length>160)WeatherApiKey=WeatherApiKey[..160];
     }
 }
 internal readonly record struct AmbientLook(string Direction,double Height,double Balance,double Softness)
