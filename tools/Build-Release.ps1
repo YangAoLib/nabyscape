@@ -1,10 +1,12 @@
 param([Parameter(Mandatory)][string]$Tag,[string]$Dotnet='dotnet',[string]$OutputDirectory,[Alias('CompileOnly')][switch]$SkipTests)
 $ErrorActionPreference='Stop'
-if ($Tag -notmatch '^v\d+\.\d+\.\d+$') { throw 'Expected tag vMAJOR.MINOR.PATCH.' }
+# Fork releases append -cn to the upstream tag (for example v2.26.1-cn); plain upstream tags stay valid.
+if ($Tag -notmatch '^v\d+\.\d+\.\d+(-cn)?$') { throw 'Expected tag vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-cn.' }
 $repo=Split-Path $PSScriptRoot -Parent
 if ([string]::IsNullOrEmpty($OutputDirectory)) { $OutputDirectory = Join-Path $repo 'release-output' }
 [xml]$project=Get-Content -LiteralPath (Join-Path $repo 'src\NabyScape\NabyScape.csproj')
-if ($Tag.Substring(1) -ne $project.Project.PropertyGroup.Version) { throw 'Tag must match project version.' }
+$version=$Tag.Substring(1) -replace '-cn$',''
+if ($version -ne $project.Project.PropertyGroup.Version) { throw 'Tag must match project version.' }
 $output=[IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $output) { throw 'Release output must be a new empty path; never reuse prior assets.' }
 New-Item -ItemType Directory -Path $output | Out-Null
@@ -27,6 +29,6 @@ $noticeZip=Join-Path $output 'NabyScape-Notices.zip'
 Compress-Archive -LiteralPath @($notices | ForEach-Object { Join-Path $publish $_ }) -DestinationPath $noticeZip
 $assets+=$noticeZip
 $assets | ForEach-Object { ((Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant())+'  '+[IO.Path]::GetFileName($_) } | Set-Content -LiteralPath (Join-Path $output 'SHA256SUMS') -Encoding ascii
-& (Join-Path $PSScriptRoot 'New-WinGetManifest.ps1') -Version $Tag.Substring(1) -Setup (Join-Path $output 'NabyScape-win-x64-Setup.exe') -Arm64Setup (Join-Path $output 'NabyScape-win-arm64-Setup.exe') -OutputDirectory (Join-Path $output 'winget')
+& (Join-Path $PSScriptRoot 'New-WinGetManifest.ps1') -Version $version -Setup (Join-Path $output 'NabyScape-win-x64-Setup.exe') -Arm64Setup (Join-Path $output 'NabyScape-win-arm64-Setup.exe') -OutputDirectory (Join-Path $output 'winget')
 & (Join-Path $PSScriptRoot 'Test-ReleasePackage.ps1') -OutputDirectory $output
 Write-Output "Release package validation passed: $output (SkipTests=$SkipTests; cross-architecture binaries are never executed)."

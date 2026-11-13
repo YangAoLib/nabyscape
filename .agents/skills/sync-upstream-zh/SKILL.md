@@ -72,7 +72,18 @@ description: 上游（BillyNabil/nabyscape）发布更新后，同步代码到�
    - `Fresh profiles use the complete bundled preferences…` → `default-preferences.json` 缺新 Settings 字段
    - `CS8510 pattern is unreachable` → switch 重复分支
    - `Logic tests failed` → 下载 run 的测试报告或看 log 中 `FAIL` 行
-6. 正式 tag 发版（可选）：fork 的 `release.yml` 仅对 `BillyNabil/nabyscape` 生效；若要在 fork 出正式 Release，需先把该 workflow 的 `github.repository == 'BillyNabil/nabyscape'` 条件改为 fork 仓库名，再改 `NabyScape.csproj` 的 `<Version>`、打 `vX.Y.Z` tag 推送
+6. 正式 tag 发版（已配置好）：fork 用「上游 tag + `-cn`」发布，例如上游 `v2.26.1` → 本 fork `v2.26.1-cn`：
+   - 前置：`release.yml` 条件已支持 fork 的 `-cn` tag（上游原仓库的普通 tag 流程不受影响）；`tools/Build-Release.ps1` 已接受 `vX.Y.Z-cn` 并按去掉 `-cn` 的版本号校验 `NabyScape.csproj` 的 `<Version>`
+   - 同步上游后确认 `<Version>` 与上游最新 tag 一致（上游 bump 版本时跟着改）
+   - 发布步骤：
+     ```powershell
+     git fetch upstream --tags
+     git tag --sort=-v:refname | Select-Object -First 3   # 确认上游最新 tag
+     git tag v2.26.1-cn && git push origin v2.26.1-cn     # 示例：上游 v2.26.1
+     gh run watch --repo YangAoLib/nabyscape $(gh run list --repo YangAoLib/nabyscape --workflow "Draft official release" --limit 1 --json databaseId --jq '.[0].databaseId') --exit-status
+     ```
+   - workflow 产出 **draft release**（不自动发布）：x64/ARM64 的 Setup.exe + Portable.zip、`NabyScape-Notices.zip`、`SHA256SUMS`
+   - 到 GitHub Releases 页面检查 draft 的说明与产物，手动 Publish 即为正式发版；tag 名与产物文件名保留 `-cn` 标识，与上游 release 区分
 
 ## 注意事项
 
