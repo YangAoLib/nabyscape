@@ -12,7 +12,6 @@ using System.Threading.Tasks;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.OpenSsl;
 using Org.BouncyCastle.Security;
 namespace NabyScape;
 
@@ -336,13 +335,13 @@ internal sealed class WeatherService : IDisposable
     }
     private static bool JwtConfigured(Settings s)=>s.WeatherProjectId.Length>0&&s.WeatherCredentialId.Length>0&&s.WeatherPrivateKey.Length>0;
     // .NET has no public Ed25519 API, so PEM handling and EdDSA signatures use BouncyCastle.
-    // Reading goes through PemReader (PrivateKeyFactory/PublicKeyFactory); writing uses the fixed
-    // Ed25519 DER templates, so no version-sensitive ASN.1 factory APIs are needed.
+    // RFC 8410 makes Ed25519 PKCS#8/SPKI fixed-size structures, so parsing is done directly on the DER
+    // instead of relying on PemReader's version-dependent PKCS#8 object mapping.
     internal static Ed25519PrivateKeyParameters ImportPrivateKey(string pem)
     {
-        if(!pem.Contains('-'))pem="-----BEGIN PRIVATE KEY-----\n"+pem+"\n-----END PRIVATE KEY-----";
-        using var reader=new StringReader(pem);
-        if(new PemReader(reader).ReadObject() is AsymmetricCipherKeyPair pair && pair.Private is Ed25519PrivateKeyParameters key)return key;
+        byte[] der=PemDer(pem);
+        if(der.Length==48 && der[0]==0x30 && der[1]==0x2E && der[12]==0x04 && der[14]==0x04 && der[15]==0x20)
+            return new Ed25519PrivateKeyParameters(der,16);
         throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
     }
     internal static bool JwtReady(Settings s)
@@ -352,10 +351,16 @@ internal sealed class WeatherService : IDisposable
     }
     internal static Ed25519PublicKeyParameters ImportPublicKey(string pem)
     {
-        if(!pem.Contains('-'))pem="-----BEGIN PUBLIC KEY-----\n"+pem+"\n-----END PUBLIC KEY-----";
-        using var reader=new StringReader(pem);
-        if(new PemReader(reader).ReadObject() is Ed25519PublicKeyParameters key)return key;
+        byte[] der=PemDer(pem);
+        if(der.Length==44 && der[0]==0x30 && der[1]==0x2A && der[12]==0x03 && der[13]==0x21)
+            return new Ed25519PublicKeyParameters(der,14);
         throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
+    }
+    private static byte[] PemDer(string pem)
+    {
+        if(!pem.Contains('-'))return Convert.FromBase64String(pem.Trim());
+        string base64=string.Concat(pem.Split('\n').Where(line=>!line.Contains('-')).Select(line=>line.Trim()));
+        return Convert.FromBase64String(base64);
     }
     private static string EnsureJwt(Settings s)
     {
