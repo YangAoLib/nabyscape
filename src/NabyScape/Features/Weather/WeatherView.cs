@@ -144,7 +144,7 @@ internal sealed class WeatherView : UserControl
             status.Text=places.Length==0?(app.Settings.WeatherSource=="nmc"?"No stations found. Try a nearby city or its province.":"No cities found. Try a nearby city or include the country."):"Choose your city above.";
         }
         catch(OperationCanceledException){}
-        catch(Exception){if(IsLoaded)status.Text="City search is unavailable. Please try again.";}
+        catch(Exception ex){if(IsLoaded)status.Text=ex is InvalidOperationException?ex.Message:"City search is unavailable. Please try again.";}
         finally{if(IsLoaded && request==searchRequest)find.IsEnabled=true;}
     }
     private async Task Reload(bool force=false)
@@ -159,7 +159,7 @@ internal sealed class WeatherView : UserControl
             shown=snapshot;Render(snapshot);status.Text="Updated "+snapshot.Updated.ToLocalTime().ToString("HH:mm");
         }
         catch(OperationCanceledException){}
-        catch(Exception){if(IsLoaded && version==revision)status.Text=shown==null?"Weather unavailable. Refresh to try again.":"Saved outlook · connection unavailable";}
+        catch(Exception ex){if(IsLoaded && version==revision)status.Text=shown==null?(ex is InvalidOperationException?ex.Message:"Weather unavailable. Refresh to try again."):"Saved outlook · connection unavailable";}
         finally{if(IsLoaded && version==revision){busy=false;retry.IsEnabled=true;}}
     }
     private void Render(WeatherSnapshot? data)

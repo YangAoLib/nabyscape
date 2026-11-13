@@ -77,7 +77,7 @@ internal sealed class WeatherService : IDisposable
         if(settings.WeatherSource=="qweather")
         {
             (string host,string key)=QwCredential(settings.WeatherApiKey);if(key.Length==0)return Array.Empty<WeatherPlace>();
-            using var doc=await Fetch("https://"+host+"/geo/v2/city/lookup?location="+Uri.EscapeDataString(city)+"&number=8&lang=zh&key="+Uri.EscapeDataString(key),token);
+            using var doc=await FetchQw("https://"+host+"/geo/v2/city/lookup?location="+Uri.EscapeDataString(city)+"&number=8&lang=zh&key="+Uri.EscapeDataString(key),token);
             if(!doc.RootElement.TryGetProperty("location",out var results)||results.ValueKind!=JsonValueKind.Array)return Array.Empty<WeatherPlace>();
             return results.EnumerateArray().Select(place=>new WeatherPlace(string.Join(" · ",new[]{Text(place,"name"),Text(place,"adm1")}.Where(v=>v.Length>0).Distinct()),0,0,Text(place,"id"))).Where(p=>p.StationCode.Length>0).ToArray();
         }
@@ -179,12 +179,10 @@ internal sealed class WeatherService : IDisposable
         if(string.IsNullOrWhiteSpace(location))throw new InvalidOperationException("Choose a city first.");
         (string host,string apiKeyValue)=QwCredential(apiKey);if(apiKeyValue.Length==0)throw new InvalidOperationException("QWeather API key required.");
         string unit=units=="Fahrenheit"?"i":"m";
-        using var now=await Fetch("https://"+host+"/v7/weather/now?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);
-        CheckQw(now.RootElement);
+        using var now=await FetchQw("https://"+host+"/v7/weather/now?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);
         var current=Section(now.RootElement,"now");
         string sunrise="",sunset="";
-        using var daily=await Fetch("https://"+host+"/v7/weather/7d?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);
-        CheckQw(daily.RootElement);
+        using var daily=await FetchQw("https://"+host+"/v7/weather/7d?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);
         if(TrySection(daily.RootElement,"daily",out var days)&&days.ValueKind==JsonValueKind.Array&&days.GetArrayLength()>0)
         {
             sunrise=Text(days[0],"sunrise");sunset=Text(days[0],"sunset");
@@ -199,8 +197,7 @@ internal sealed class WeatherService : IDisposable
         }
         try
         {
-            using var hours=await Fetch("https://"+host+"/v7/weather/24h?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);
-            CheckQw(hours.RootElement);
+            using var hours=await FetchQw("https://"+host+"/v7/weather/24h?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);
             if(TrySection(hours.RootElement,"hourly",out var hourly)&&hourly.ValueKind==JsonValueKind.Array)
             {
                 double best=0;
@@ -232,7 +229,10 @@ internal sealed class WeatherService : IDisposable
     private static void CheckQw(JsonElement root)
     {
         string code=Text(root,"code");
-        if(code.Length>0&&code!="200")throw code=="402"||code=="401"||code=="403" ? new InvalidOperationException("QWeather API key or plan issue ("+code+").") : new InvalidOperationException("QWeather error "+code+".");
+        if(code.Length==0||code=="200")return;
+        throw code is "401" or "402" or "403"
+            ?new InvalidOperationException(Localization.Format("QWeather API key or plan issue ({0}). Check the key, or use host|key when your console shows a dedicated API Host.",code))
+            :new InvalidOperationException(Localization.Format("QWeather error ({0}).",code));
     }
     private static bool TrySection(JsonElement root,string name,out JsonElement section)=>root.TryGetProperty(name,out section);
     // QWeather icon codes (100 晴 101 多云 104 阴 300-399 雨 400-499 雪 500-515 雾霾沙尘) to WMO weather codes.
@@ -280,6 +280,23 @@ internal sealed class WeatherService : IDisposable
         response.EnsureSuccessStatusCode();
         await using var stream=await response.Content.ReadAsStreamAsync(token);
         return await JsonDocument.ParseAsync(stream,default,token);
+    }
+    // QWeather rejects bad credentials with a bare HTTP 403/401 (empty body); surface an actionable message instead of a generic failure.
+    private static async Task<JsonDocument> FetchQw(string url,CancellationToken token)
+    {
+        using var request=new HttpRequestMessage(HttpMethod.Get,url);
+        using var response=await client.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,token);
+        if(!response.IsSuccessStatusCode)
+        {
+            int status=(int)response.StatusCode;
+            throw status is 401 or 403
+                ?new InvalidOperationException(Localization.Format("QWeather rejected the request ({0}). Check the key, or use host|key when your console shows a dedicated API Host.",status))
+                :new InvalidOperationException(Localization.Format("QWeather error ({0}).",status));
+        }
+        await using var stream=await response.Content.ReadAsStreamAsync(token);
+        var doc=await JsonDocument.ParseAsync(stream,default,token);
+        CheckQw(doc.RootElement);
+        return doc;
     }
     private static async Task<JsonDocument> Fetch(string url,CancellationToken token)
     {
