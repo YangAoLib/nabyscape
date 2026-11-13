@@ -10,7 +10,7 @@ internal sealed class LyricsSearchWindow : Window
     private readonly CancellationTokenSource lifetime=new();
     internal LyricsSearchWindow(App app)
     {
-        Title="Choose lyrics provider";Width=560;Height=520;MinWidth=360;MinHeight=320;WindowStartupLocation=WindowStartupLocation.CenterOwner;
+        Title=Localization.Text("Choose lyrics provider");Width=560;Height=520;MinWidth=360;MinHeight=320;WindowStartupLocation=WindowStartupLocation.CenterOwner;
         Background=UI.Brush("#101114");Foreground=Brushes.White;
         string title=app.Media.Title,artist=app.Media.Artist;double duration=app.Media.Timeline().duration;
         var panel=new StackPanel{Margin=new(20)};Content=new ScrollViewer{Content=panel,VerticalScrollBarVisibility=ScrollBarVisibility.Auto};

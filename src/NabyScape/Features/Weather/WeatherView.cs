@@ -150,7 +150,7 @@ internal sealed class WeatherView : UserControl
             Localization.Text("1. Open console.qweather.com and sign up for a free account."),
             Localization.Text("2. In the console, create a project, then add an API key credential to it."),
             Localization.Text("3. Copy the key and paste it into the box above."),
-            Localization.Text("4. If your console shows a dedicated API Host (like abc.re.qweatherapi.com), paste it into the API Host box.")})
+            Localization.Text("4. QWeather assigns every account a dedicated API Host (like abc.re.qweatherapi.com); paste yours into the API Host box.")})
         {
             var line=UI.Text(step,12);line.TextWrapping=TextWrapping.Wrap;line.Margin=new(0,8,0,0);panel.Children.Add(line);
         }

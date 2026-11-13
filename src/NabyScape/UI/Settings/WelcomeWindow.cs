@@ -26,7 +26,7 @@ internal sealed class WelcomeWindow : Window
     {
         this.app=app;edge=app.Settings.DockEdge;
         widgets=app.Settings.Widgets.ToDictionary(w=>w.Id,w=>w.Enabled);
-        Title="Welcome to NabyScape";Width=580;Height=620;MinWidth=420;MinHeight=360;
+        Title=Localization.Text("Welcome to NabyScape");Width=580;Height=620;MinWidth=420;MinHeight=360;
         MaxHeight=SystemParameters.WorkArea.Height;MaxWidth=SystemParameters.WorkArea.Width;
         WindowStartupLocation=WindowStartupLocation.CenterScreen;
         Background=Accessibility.HighContrast?SystemColors.WindowBrush:UI.Brush("#111214");
