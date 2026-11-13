@@ -61,14 +61,23 @@ internal sealed class WeatherView : UserControl
         var privateField=Placeholder(privateKeyBox,Localization.Text("Generate a key pair, or paste a PKCS#8 private key PEM"),true);privateField.Margin=new(0,2,0,2);
         void CommitPrivate(){string value=privateKeyBox.Text.Trim();if(app.Settings.WeatherPrivateKey!=value){app.Settings.WeatherPrivateKey=value;app.ChangeSettings();}}
         privateKeyBox.LostFocus+=(_,_)=>CommitPrivate();
+        var publicKeyBox=new TextBox{AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,FontSize=9,Height=52,Text=app.Settings.WeatherPublicKey,IsReadOnly=true,Background=UI.Brush("#181C22"),VerticalScrollBarVisibility=ScrollBarVisibility.Auto};
+        UI.Named(publicKeyBox,"QWeather public key");
+        var publicField=Placeholder(publicKeyBox,Localization.Text("After generating a key pair, the public key to upload appears here"),true);publicField.Margin=new(0,2,0,2);
         var jwtButtons=new StackPanel{Orientation=Orientation.Horizontal,Margin=new(0,2,0,4)};
         var generate=UI.CaptionButton("Generate key pair",()=>{
             (string privateKey,string publicKey)=WeatherService.GenerateKeyPair();
             privateKeyBox.Text=privateKey;CommitPrivate();
+            app.Settings.WeatherPublicKey=publicKey;publicKeyBox.Text=publicKey;app.ChangeSettings();
             try{System.Windows.Clipboard.SetText(publicKey);}catch(Exception){}
             status.Text=Localization.Text("Public key copied. Upload it to your QWeather console credential.");
         });
-        jwtButtons.Children.Add(generate);
+        var copyPublic=UI.CaptionButton("Copy public key",()=>{
+            string publicKey=app.Settings.WeatherPublicKey;
+            if(publicKey.Length==0){status.Text=Localization.Text("Generate a key pair first. The public key is shown below the private key.");return;}
+            try{System.Windows.Clipboard.SetText(publicKey);status.Text=Localization.Text("Public key copied. Upload it to your QWeather console credential.");}catch(Exception){}
+        });
+        jwtButtons.Children.Add(generate);jwtButtons.Children.Add(copyPublic);
         var hostInput=UI.Input("QWeather API host",app.Settings.WeatherApiHost,"");UI.Named(hostInput,"QWeather API host");
         var hostField=Placeholder(hostInput,Localization.Text("Your API Host, for example abc.re.qweatherapi.com"));hostField.Margin=new(0,2,0,8);
         void CommitHost(){string value=hostInput.Text.Trim();if(app.Settings.WeatherApiHost!=value){app.Settings.WeatherApiHost=value;app.ChangeSettings();}}
@@ -83,6 +92,7 @@ internal sealed class WeatherView : UserControl
         location.Children.Add(credentialField);
         location.Children.Add(privateField);
         location.Children.Add(jwtButtons);
+        location.Children.Add(publicField);
         location.Children.Add(hostField);
         location.Children.Add(guide);
         void RefreshAuthVisibility()
@@ -90,7 +100,7 @@ internal sealed class WeatherView : UserControl
             bool qw=app.Settings.WeatherSource=="qweather";
             bool jwt=app.Settings.WeatherAuthMode=="jwt";
             keyField.Visibility=qw&&!jwt?Visibility.Visible:Visibility.Collapsed;
-            projectField.Visibility=credentialField.Visibility=privateField.Visibility=jwtButtons.Visibility=qw&&jwt?Visibility.Visible:Visibility.Collapsed;
+            projectField.Visibility=credentialField.Visibility=privateField.Visibility=publicField.Visibility=jwtButtons.Visibility=qw&&jwt?Visibility.Visible:Visibility.Collapsed;
             hostField.Visibility=authMode.Visibility=guide.Visibility=qw?Visibility.Visible:Visibility.Collapsed;
         }
         RefreshAuthVisibility();

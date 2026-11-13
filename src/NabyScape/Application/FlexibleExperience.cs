@@ -27,6 +27,7 @@ public sealed partial class Settings
     public string WeatherProjectId {get;set;}="";
     public string WeatherCredentialId {get;set;}="";
     public string WeatherPrivateKey {get;set;}="";
+    public string WeatherPublicKey {get;set;}="";
     private void NormalizeFlexible()
     {
         FollowMonitorDuration=double.IsFinite(FollowMonitorDuration)?Math.Clamp(FollowMonitorDuration,180,700):360;
@@ -54,6 +55,7 @@ public sealed partial class Settings
         WeatherProjectId=(WeatherProjectId??"").Trim();if(WeatherProjectId.Length>64)WeatherProjectId=WeatherProjectId[..64];
         WeatherCredentialId=(WeatherCredentialId??"").Trim();if(WeatherCredentialId.Length>64)WeatherCredentialId=WeatherCredentialId[..64];
         WeatherPrivateKey=(WeatherPrivateKey??"").Trim();if(WeatherPrivateKey.Length>2400)WeatherPrivateKey=WeatherPrivateKey[..2400];
+        WeatherPublicKey=(WeatherPublicKey??"").Trim();if(WeatherPublicKey.Length>1200)WeatherPublicKey=WeatherPublicKey[..1200];
     }
 }
 internal readonly record struct AmbientLook(string Direction,double Height,double Balance,double Softness)
