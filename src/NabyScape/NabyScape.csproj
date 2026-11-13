@@ -27,6 +27,7 @@
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Lucene.Net.Analysis.Kuromoji" Version="4.8.0-beta00018" />
     <PackageReference Include="NTextCat" Version="0.3.65" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.5.1" />
     <Resource Include="Assets\island.ico" />
     <Resource Include="Assets\naby-chrome.png" />
     <Resource Include="Assets\Fonts\Manrope-Medium.ttf" />

@@ -91,12 +91,16 @@ internal static class ProductionFoundationTests
         {
             (string privateKey,string publicKey)=WeatherService.GenerateKeyPair();
             Assert(privateKey.Contains("BEGIN PRIVATE KEY") && publicKey.Contains("BEGIN PUBLIC KEY"),"Generated key pair lacks PEM markers.");
-            using var signer=System.Security.Cryptography.Ed25519.ImportFromPem(privateKey);
-            using var verifier=System.Security.Cryptography.Ed25519.ImportFromPem(publicKey);
+            var signer=Org.BouncyCastle.Security.SignerUtilities.GetSigner("Ed25519");
+            signer.Init(true,WeatherService.ImportPrivateKey(privateKey));
             byte[] data=System.Text.Encoding.UTF8.GetBytes("eyJhbGciOiJFZERTQSJ9.eyJzdWIiOiIxMjM0NSJ9");
-            byte[] signature=signer.SignData(data,System.Security.Cryptography.HashAlgorithmName.SHA512);
+            signer.BlockUpdate(data,0,data.Length);
+            byte[] signature=signer.GenerateSignature();
             Assert(signature.Length==64,"Ed25519 signatures must be 64 bytes.");
-            Assert(verifier.VerifyData(data,signature),"The exported public key must verify the EdDSA signature.");
+            var verifier=Org.BouncyCastle.Security.SignerUtilities.GetSigner("Ed25519");
+            verifier.Init(false,WeatherService.ImportPublicKey(publicKey));
+            verifier.BlockUpdate(data,0,data.Length);
+            Assert(verifier.VerifySignature(signature),"The exported public key must verify the EdDSA signature.");
         });
     }
 }

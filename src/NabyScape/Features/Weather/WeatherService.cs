@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -9,6 +10,14 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Pkcs;
+using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.OpenSsl;
+using Org.BouncyCastle.Security;
 namespace NabyScape;
 
 internal sealed record WeatherPlace(string Name,double Latitude,double Longitude,string StationCode="");
@@ -330,30 +339,56 @@ internal sealed class WeatherService : IDisposable
         return doc;
     }
     private static bool JwtConfigured(Settings s)=>s.WeatherProjectId.Length>0&&s.WeatherCredentialId.Length>0&&s.WeatherPrivateKey.Length>0;
-    private static Ed25519 ImportPrivateKey(string pem)
+    // .NET has no public Ed25519 API, so the PEM handling and EdDSA signatures use BouncyCastle.
+    internal static Ed25519PrivateKeyParameters ImportPrivateKey(string pem)
     {
         if(!pem.Contains('-'))pem="-----BEGIN PRIVATE KEY-----\n"+pem+"\n-----END PRIVATE KEY-----";
-        return Ed25519.ImportFromPem(pem);
+        using var reader=new StringReader(pem);
+        var obj=new PemReader(reader).ReadPemObject();
+        if(obj is null || obj.Type!="PRIVATE KEY")throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
+        return Ed25519PrivateKeyParameters.CreateFromPrivateKeyInfo(PrivateKeyInfo.GetInstance(obj.Content));
+    }
+    internal static Ed25519PublicKeyParameters ImportPublicKey(string pem)
+    {
+        if(!pem.Contains('-'))pem="-----BEGIN PUBLIC KEY-----\n"+pem+"\n-----END PUBLIC KEY-----";
+        using var reader=new StringReader(pem);
+        var obj=new PemReader(reader).ReadPemObject();
+        if(obj is null || obj.Type!="PUBLIC KEY")throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
+        return new Ed25519PublicKeyParameters(obj.Content,0);
     }
     private static string EnsureJwt(Settings s)
     {
         if(jwtToken is { } cached && DateTimeOffset.UtcNow<jwtExpires)return cached;
         if(!JwtConfigured(s))throw new InvalidOperationException(Localization.Text("Enter your QWeather project ID, credential ID and private key first."));
-        using Ed25519 signer=ImportPrivateKey(s.WeatherPrivateKey);
+        Ed25519PrivateKeyParameters parameters=ImportPrivateKey(s.WeatherPrivateKey);
         long iat=DateTimeOffset.UtcNow.AddSeconds(-10).ToUnixTimeSeconds();
         long exp=DateTimeOffset.UtcNow.AddMinutes(30).ToUnixTimeSeconds();
         string header=Base64Url("{\"alg\":\"EdDSA\",\"kid\":\""+EscapeJson(s.WeatherCredentialId)+"\"}");
         string payload=Base64Url("{\"sub\":\""+EscapeJson(s.WeatherProjectId)+"\",\"iat\":"+iat.ToString(CultureInfo.InvariantCulture)+",\"exp\":"+exp.ToString(CultureInfo.InvariantCulture)+"}");
         string signing=header+"."+payload;
-        byte[] signature=signer.SignData(Encoding.UTF8.GetBytes(signing),HashAlgorithmName.SHA512);
+        byte[] data=Encoding.UTF8.GetBytes(signing);
+        ISigner signer=SignerUtilities.GetSigner("Ed25519");
+        signer.Init(true,parameters);
+        signer.BlockUpdate(data,0,data.Length);
+        byte[] signature=signer.GenerateSignature();
         jwtToken=signing+"."+Base64Url(signature);
         jwtExpires=DateTimeOffset.UtcNow.AddMinutes(29);
         return jwtToken;
     }
     internal static (string PrivateKey,string PublicKey) GenerateKeyPair()
     {
-        using Ed25519 pair=Ed25519.Create();
-        return (pair.ExportPkcs8PrivateKeyPem(),pair.ExportSubjectPublicKeyInfoPem());
+        var generator=new Ed25519KeyPairGenerator();
+        generator.Init(new Ed25519KeyGenerationParameters(new SecureRandom()));
+        AsymmetricCipherKeyPair pair=generator.GenerateKeyPair();
+        return (Pem("PRIVATE KEY",PrivateKeyInfoFactory.CreatePrivateKeyInfo((Ed25519PrivateKeyParameters)pair.Private)),
+            Pem("PUBLIC KEY",SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo((Ed25519PublicKeyParameters)pair.Public)));
+    }
+    private static string Pem(string title,Asn1Object info)
+    {
+        using var writer=new StringWriter();
+        new PemWriter(writer).WriteObject(info);
+        writer.Flush();
+        return writer.ToString();
     }
     private static string Base64Url(string text)=>Base64Url(Encoding.UTF8.GetBytes(text));
     private static string Base64Url(byte[] bytes)=>Convert.ToBase64String(bytes).TrimEnd('=').Replace('+','-').Replace('/','_');
