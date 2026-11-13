@@ -342,7 +342,7 @@ internal sealed class WeatherService : IDisposable
         byte[] der=PemDer(pem);
         if(der.Length==48 && der[0]==0x30 && der[1]==0x2E && der[12]==0x04 && der[14]==0x04 && der[15]==0x20)
             return new Ed25519PrivateKeyParameters(der,16);
-        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
+        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid.")+" (privDER len="+der.Length+" head="+Head(der)+")");
     }
     internal static bool JwtReady(Settings s)
     {
@@ -354,7 +354,14 @@ internal sealed class WeatherService : IDisposable
         byte[] der=PemDer(pem);
         if(der.Length==44 && der[0]==0x30 && der[1]==0x2A && der[12]==0x03 && der[13]==0x21)
             return new Ed25519PublicKeyParameters(der,14);
-        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
+        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid.")+" (pubDER len="+der.Length+" head="+Head(der)+")");
+    }
+    private static string Head(byte[] data)
+    {
+        int take=Math.Min(16,data.Length);
+        var builder=new StringBuilder(take*3+2);
+        for(int i=0;i<take;i++)builder.Append(data[i].ToString("x2")).Append(' ');
+        return builder.ToString();
     }
     private static byte[] PemDer(string pem)
     {
@@ -395,7 +402,7 @@ internal sealed class WeatherService : IDisposable
         byte[] encoded=key.GetEncoded();
         if(encoded.Length==32)return encoded;
         if(encoded.Length==48 && encoded[0]==0x30 && encoded[14]==0x04 && encoded[15]==0x20)return encoded.Skip(16).Take(32).ToArray();
-        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
+        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid.")+" (seedGetEncoded len="+encoded.Length+" head="+Head(encoded)+")");
     }
     internal static byte[] Ed25519PublicBytes(Ed25519PublicKeyParameters key)
     {
@@ -403,7 +410,7 @@ internal sealed class WeatherService : IDisposable
         if(encoded.Length==32)return encoded;
         if(encoded.Length==44 && encoded[0]==0x30 && encoded[12]==0x03)return encoded.Skip(14).Take(32).ToArray();
         if(encoded.Length==48 && encoded[0]==0x30 && encoded[14]==0x04)return encoded.Skip(16).Take(32).ToArray();
-        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid."));
+        throw new InvalidOperationException(Localization.Text("QWeather private key is invalid.")+" (pubGetEncoded len="+encoded.Length+" head="+Head(encoded)+")");
     }
     // Ed25519 PKCS#8: SEQUENCE { INTEGER 0, OID 1.3.101.112, OCTET STRING { OCTET STRING seed } }.
     private static string PrivatePem(byte[] seed)
