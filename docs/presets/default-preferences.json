@@ -342,6 +342,7 @@
   "WeatherSource": "nmc",
   "WeatherStationCode": "",
   "WeatherApiKey": "",
+  "WeatherApiHost": "",
   "DownloadsFolder": "",
   "CountdownSoundFile": "",
   "RecentColors": [],

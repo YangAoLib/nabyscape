@@ -13,7 +13,7 @@ internal static class PreferenceReset
         ["Ambience"]="CoverAmbient ClosedAmbient AmbientStrength AmbientSpread AmbientMotion AmbientScope AmbientWidgets AmbientColorSource AmbientCustomColor AmbientSecondaryColor AmbientPalette AmbientDirection AmbientHeight AmbientBalance AmbientSoftness AmbientAudioResponse AmbientSensitivity".Split(' '),
         ["Motion"]="InteractionMotion AnimationMs ReduceMotion LiveActivity Performance".Split(' '),
         ["Clipboard"]="ClipboardHistory".Split(' '),
-        ["Weather"]="WeatherCity WeatherLatitude WeatherLongitude WeatherUnits WeatherSource WeatherStationCode WeatherApiKey".Split(' '),
+        ["Weather"]="WeatherCity WeatherLatitude WeatherLongitude WeatherUnits WeatherSource WeatherStationCode WeatherApiKey WeatherApiHost".Split(' '),
         ["Visibility"]="HideFullscreen HideMaximized AlwaysTucked TuckEdge TuckHotkeyEnabled TuckHotkeyKey TuckHotkeyModifiers VisibilityHotkeyEnabled VisibilityHotkeyKey VisibilityHotkeyModifiers SmartActivities BrowserMediaPreviews".Split(' '),
         ["Notifications"]="ExternalNotifications ExternalNotificationPopup ExternalNotificationText ExternalNotificationQuietHours ExternalNotificationMuted CountdownSound CountdownSoundVolume CountdownSoundFile NotificationSeconds NotificationAnimation QuietHours QuietStart QuietEnd NotificationsSnoozedUntil NotificationDelivery NotifyTimer NotifyFocus NotifyDownloads NotifyUpdates NotifyFailures DownloadsEnabled DownloadsFolder".Split(' '),
         ["Appearance"]="Preset Radius Background Accent Opacity SettingsMaterial GlassStyle GlassStrength AlbumAccent ControlFill ControlBorder SelectionFill CategoryStyle BoldMediaTitle BoldHeadings RecentColors".Split(' '),

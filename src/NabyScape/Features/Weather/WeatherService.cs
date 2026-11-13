@@ -59,24 +59,30 @@ internal sealed class WeatherService : IDisposable
     internal static string Key(Settings s)=>s.WeatherSource switch
     {
         "nmc"=>s.WeatherStationCode.Length>0?"nmc|"+s.WeatherStationCode+"|"+s.WeatherUnits:"",
-        "qweather"=>s.WeatherStationCode.Length>0&&s.WeatherApiKey.Length>0?"qw|"+s.WeatherStationCode+"|"+s.WeatherUnits+"|"+QwKeyPart(s.WeatherApiKey):"",
+        "qweather"=>s.WeatherStationCode.Length>0&&s.WeatherApiKey.Length>0?"qw|"+s.WeatherStationCode+"|"+s.WeatherUnits+"|"+QwKeyPart(s):"",
         _=>s.WeatherLatitude is {} lat && s.WeatherLongitude is {} lon?FormattableString.Invariant($"{lat:F5},{lon:F5}|{s.WeatherUnits}"):""
     };
-    // QWeather credential accepts "key" (free default host) or "myhost.re.qweatherapi.com|key" for a dedicated API Host.
-    internal static (string Host,string Key) QwCredential(string apiKey)
+    // QWeather host comes from its own setting; a "host|key" value pasted into the key box from older builds still works.
+    internal static (string Host,string Key) QwCredential(Settings s)
     {
-        string value=apiKey.Trim();
-        int split=value.IndexOf('|');
-        return split>0?(value[..split].Trim(),value[(split+1)..].Trim()):("devapi.qweather.com",value);
+        string host=s.WeatherApiHost.Trim(),key=s.WeatherApiKey.Trim();
+        int split=key.IndexOf('|');
+        if(split>0){host=key[..split].Trim();key=key[(split+1)..].Trim();}
+        if(host.Length==0)host="devapi.qweather.com";
+        return (host,key);
     }
-    private static string QwKeyPart(string apiKey)=>QwCredential(apiKey).Key.Length>4?QwCredential(apiKey).Key[..4]:QwCredential(apiKey).Key;
+    private static string QwKeyPart(Settings s)
+    {
+        (string host,string key)=QwCredential(s);
+        return (host.Length>12?host[..12]:host)+"|"+(key.Length>4?key[..4]:key);
+    }
     internal async Task<WeatherPlace[]> Search(Settings settings,string city,CancellationToken token)
     {
         city=city.Trim();if(city.Length<2)return Array.Empty<WeatherPlace>();if(city.Length>120)city=city[..120];
         if(settings.WeatherSource=="nmc")return await SearchNmc(city,token);
         if(settings.WeatherSource=="qweather")
         {
-            (string host,string key)=QwCredential(settings.WeatherApiKey);if(key.Length==0)return Array.Empty<WeatherPlace>();
+            (string host,string key)=QwCredential(settings);if(key.Length==0)return Array.Empty<WeatherPlace>();
             using var doc=await FetchQw("https://"+host+"/geo/v2/city/lookup?location="+Uri.EscapeDataString(city)+"&number=8&lang=zh&key="+Uri.EscapeDataString(key),token);
             if(!doc.RootElement.TryGetProperty("location",out var results)||results.ValueKind!=JsonValueKind.Array)return Array.Empty<WeatherPlace>();
             return results.EnumerateArray().Select(place=>new WeatherPlace(string.Join(" · ",new[]{Text(place,"name"),Text(place,"adm1")}.Where(v=>v.Length>0).Distinct()),0,0,Text(place,"id"))).Where(p=>p.StationCode.Length>0).ToArray();
@@ -96,7 +102,7 @@ internal sealed class WeatherService : IDisposable
             request=new(){Cancellation=cancellation,Task=s.WeatherSource switch
             {
                 "nmc"=>DownloadNmc(s.WeatherStationCode,s.WeatherUnits,key,cancellation.Token),
-                "qweather"=>DownloadQweather(s.WeatherStationCode,s.WeatherApiKey,s.WeatherUnits,key,cancellation.Token),
+                "qweather"=>DownloadQweather(s,key,cancellation.Token),
                 _=>Download(s.WeatherLatitude!.Value,s.WeatherLongitude!.Value,s.WeatherUnits,key,cancellation.Token)
             }};pending=request;
         }
@@ -174,10 +180,11 @@ internal sealed class WeatherService : IDisposable
         return img switch{0=>0,1=>1,2=>3,3=>80,4 or 5=>95,6=>61,7=>63,8 or 9=>65,10 or 11=>82,12=>85,13=>71,14=>73,15 or 16=>75,17 or 28 or 32 or 33 or 34 or 53=>45,18=>67,20=>61,21=>63,22 or 23=>65,24=>82,25=>71,26=>73,27=>75,19 or 29 or 30 or 31=>45,_=>0};
     }
     // QWeather (和风天气) source: hourly data with precipitation probability; needs a free key from qweather.com.
-    private async Task<WeatherSnapshot> DownloadQweather(string location,string apiKey,string units,string key,CancellationToken token)
+    private async Task<WeatherSnapshot> DownloadQweather(Settings s,string key,CancellationToken token)
     {
-        if(string.IsNullOrWhiteSpace(location))throw new InvalidOperationException("Choose a city first.");
-        (string host,string apiKeyValue)=QwCredential(apiKey);if(apiKeyValue.Length==0)throw new InvalidOperationException("QWeather API key required.");
+        if(string.IsNullOrWhiteSpace(s.WeatherStationCode))throw new InvalidOperationException("Choose a city first.");
+        (string host,string apiKeyValue)=QwCredential(s);if(apiKeyValue.Length==0)throw new InvalidOperationException("QWeather API key required.");
+        string location=s.WeatherStationCode,units=s.WeatherUnits;
         string unit=units=="Fahrenheit"?"i":"m";
         using var now=await FetchQw("https://"+host+"/v7/weather/now?location="+Uri.EscapeDataString(location)+"&unit="+unit+"&lang=zh&key="+Uri.EscapeDataString(apiKeyValue),token);
         var current=Section(now.RootElement,"now");

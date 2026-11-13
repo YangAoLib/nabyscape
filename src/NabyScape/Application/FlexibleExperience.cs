@@ -22,6 +22,7 @@ public sealed partial class Settings
     public string WeatherSource {get;set;}="nmc";
     public string WeatherStationCode {get;set;}="";
     public string WeatherApiKey {get;set;}="";
+    public string WeatherApiHost {get;set;}="";
     private void NormalizeFlexible()
     {
         FollowMonitorDuration=double.IsFinite(FollowMonitorDuration)?Math.Clamp(FollowMonitorDuration,180,700):360;
@@ -40,6 +41,11 @@ public sealed partial class Settings
         if(WeatherSource is not ("nmc" or "qweather" or "open-meteo"))WeatherSource="nmc";
         WeatherStationCode=(WeatherStationCode??"").Trim();if(WeatherStationCode.Length>32)WeatherStationCode=WeatherStationCode[..32];
         WeatherApiKey=(WeatherApiKey??"").Trim();if(WeatherApiKey.Length>160)WeatherApiKey=WeatherApiKey[..160];
+        WeatherApiHost=(WeatherApiHost??"").Trim();
+        if(WeatherApiHost.StartsWith("https://",StringComparison.OrdinalIgnoreCase))WeatherApiHost=WeatherApiHost[8..];
+        if(WeatherApiHost.StartsWith("http://",StringComparison.OrdinalIgnoreCase))WeatherApiHost=WeatherApiHost[7..];
+        WeatherApiHost=WeatherApiHost.TrimEnd('/');
+        if(WeatherApiHost.Length>120)WeatherApiHost=WeatherApiHost[..120];
     }
 }
 internal readonly record struct AmbientLook(string Direction,double Height,double Balance,double Softness)

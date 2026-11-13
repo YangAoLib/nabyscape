@@ -39,13 +39,19 @@ internal sealed class WeatherView : UserControl
         search.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){_=Search();e.Handled=true;}};
         var options=new ComboBox{ItemsSource=new[]{"Celsius","Fahrenheit"},SelectedItem=app.Settings.WeatherUnits,MinHeight=30,Margin=new(0,8,0,8)};UI.Named(options,"Weather temperature units");options.SelectionChanged+=(_,_)=>{if(options.SelectedItem is string unit && app.Settings.WeatherUnits!=unit){app.Settings.WeatherUnits=unit;app.ChangeSettings();}};location.Children.Add(options);
         var sources=new ComboBox{ItemsSource=new[]{Localization.Text("NMC · China weather"),Localization.Text("QWeather · China hourly"),Localization.Text("Open-Meteo · International")},SelectedIndex=app.Settings.WeatherSource switch{"nmc"=>0,"qweather"=>1,_=>2},MinHeight=30,Margin=new(0,0,0,2)};UI.Named(sources,"Weather source");sources.SelectionChanged+=(_,_)=>{string code=sources.SelectedIndex switch{0=>"nmc",1=>"qweather",_=>"open-meteo"};if(app.Settings.WeatherSource!=code){app.Settings.WeatherSource=code;app.ChangeSettings();}};location.Children.Add(sources);
-        var keyInput=UI.Input("QWeather API key",app.Settings.WeatherApiKey,"");keyInput.Margin=new(0,2,0,8);UI.Named(keyInput,"QWeather API key");
+        var keyInput=UI.Input("QWeather API key",app.Settings.WeatherApiKey,"");keyInput.Margin=new(0,2,0,2);UI.Named(keyInput,"QWeather API key");
         void CommitKey(){string value=keyInput.Text.Trim();if(app.Settings.WeatherApiKey!=value){app.Settings.WeatherApiKey=value;app.ChangeSettings();}}
         keyInput.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitKey();e.Handled=true;}};
         keyInput.LostFocus+=(_,_)=>CommitKey();
+        var hostInput=UI.Input("QWeather API host (optional)",app.Settings.WeatherApiHost,"");hostInput.Margin=new(0,2,0,8);UI.Named(hostInput,"QWeather API host");
+        void CommitHost(){string value=hostInput.Text.Trim();if(app.Settings.WeatherApiHost!=value){app.Settings.WeatherApiHost=value;app.ChangeSettings();}}
+        hostInput.KeyDown+=(_,e)=>{if(e.Key==Key.Enter){CommitHost();e.Handled=true;}};
+        hostInput.LostFocus+=(_,_)=>CommitHost();
         keyInput.Visibility=app.Settings.WeatherSource=="qweather"?Visibility.Visible:Visibility.Collapsed;
-        sources.SelectionChanged+=(_,_)=>keyInput.Visibility=sources.SelectedIndex==1?Visibility.Visible:Visibility.Collapsed;
+        hostInput.Visibility=keyInput.Visibility;
+        sources.SelectionChanged+=(_,_)=>{Visibility visible=sources.SelectedIndex==1?Visibility.Visible:Visibility.Collapsed;keyInput.Visibility=visible;hostInput.Visibility=visible;};
         location.Children.Add(keyInput);
+        location.Children.Add(hostInput);
         var guide=UI.CaptionButton("How to get a QWeather key?",ShowQWeatherGuide);guide.HorizontalAlignment=HorizontalAlignment.Left;guide.Margin=new(0,0,0,6);
         guide.Visibility=keyInput.Visibility;
         sources.SelectionChanged+=(_,_)=>guide.Visibility=sources.SelectedIndex==1?Visibility.Visible:Visibility.Collapsed;
@@ -77,7 +83,7 @@ internal sealed class WeatherView : UserControl
             Localization.Text("1. Open console.qweather.com and sign up for a free account."),
             Localization.Text("2. In the console, create a project, then add an API key credential to it."),
             Localization.Text("3. Copy the key and paste it into the box above."),
-            Localization.Text("4. If your console shows a dedicated API Host, enter it as host|key, for example abc.re.qweatherapi.com|your-key.")})
+            Localization.Text("4. If your console shows a dedicated API Host (like abc.re.qweatherapi.com), paste it into the API Host box.")})
         {
             var line=UI.Text(step,12);line.TextWrapping=TextWrapping.Wrap;line.Margin=new(0,8,0,0);panel.Children.Add(line);
         }
